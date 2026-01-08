@@ -8,3 +8,4 @@ xgboost
 optuna
 joblib
 warnings
+requests

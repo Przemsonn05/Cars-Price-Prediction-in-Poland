@@ -2,7 +2,7 @@ import streamlit as st
 import joblib
 import pandas as pd
 import numpy as np
-import os
+from huggingface_hub import hf_hub_download
 
 st.set_page_config(page_title="Car Price Prediction", layout="wide")
 
@@ -20,7 +20,11 @@ h1,h2,h3,h4,p,label,.stMarkdown {color:white!important;}
 
 @st.cache_resource
 def load_model():
-    return joblib.load("models/XGBoost_model.joblib")
+    model_path = hf_hub_download(
+        repo_id="Przemsonn/poland-car-price-model",
+        filename="XGBoost_model.joblib"
+    )
+    return joblib.load(model_path)
 
 model = load_model()
 
@@ -77,30 +81,58 @@ def predict():
 
     c1, c2 = st.columns(2)
     with c1:
-        year = st.number_input("Production Year", 1980, 2024, 2015)
-        mileage = st.number_input("Mileage (km)", 0, 1_000_000, 120000)
-        power = st.number_input("Power (HP)", 50, 800, 150)
-        displacement = st.number_input("Displacement (cm³)", 800, 6000, 2000)
-        vehicle_age = st.number_input("Vehicle Age (years)", 0, 50, 5)
-        annual_mileage = st.number_input("Annual Mileage (km)", 0, 100_000, 12_000)
-
-    with c2:
-        brand = st.selectbox("Brand", ["BMW","Audi","Mercedes","Toyota","Volkswagen","Ford","Other"])
-        model_name = st.text_input("Vehicle Model", "Unknown")
-        fuel = st.selectbox("Fuel", ["Petrol","Diesel","Hybrid","Electric","LPG"])
-        gearbox = st.selectbox("Transmission", ["Manual","Automatic"])
-        body = st.selectbox("Body Type", ["Sedan","SUV","Hatchback","Combi","Coupe"])
-        color = st.selectbox("Color", ["Black","White","Grey","Silver","Blue","Red","Other"])
-        drive = st.selectbox("Drive", ["FWD","RWD","AWD","4x4"])
+        brand = st.selectbox("Brand", ['Abarth', 'Acura', 'Aixam', 'Alfa Romeo', 'Alpine', 'Aston Martin',
+       'Audi', 'Austin', 'Autobianchi', 'Baic', 'Bentley', 'BMW', 'Buick',
+       'Cadillac', 'Chevrolet', 'Chrysler', 'Citroën', 'Cupra', 'Dacia',
+       'Daewoo', 'Daihatsu', 'DFSK', 'DKW', 'Dodge', 'DS Automobiles',
+       'FAW', 'Ferrari', 'Fiat', 'Ford', 'Gaz', 'GMC', 'Honda', 'Hummer',
+       'Hyundai', 'Infiniti', 'Isuzu', 'Iveco', 'Jaguar', 'Jeep', 'Kia',
+       'Lada', 'Lamborghini', 'Lancia', 'Land Rover', 'Lexus', 'Lincoln',
+       'Lotus', 'Warszawa', 'Maserati', 'Maybach', 'Mazda', 'McLaren',
+       'Mercedes-Benz', 'Mercury', 'MG', 'Microcar', 'MINI', 'Mitsubishi',
+       'Moskwicz', 'Nissan', 'NSU', 'Nysa', 'Oldsmobile', 'Opel',
+       'Toyota', 'Tata', 'Uaz', 'Żuk', 'Trabant', 'Suzuki', 'Inny',
+       'Volvo', 'Subaru', 'Volkswagen', 'SsangYong', 'Saab', 'Plymouth',
+       'Renault', 'Peugeot', 'Rolls-Royce', 'RAM', 'Triumph', 'Rover',
+       'Wołga', 'Tarpan', 'Polonez', 'Pontiac', 'Porsche', 'Santana',
+       'Saturn', 'Scion', 'Seat', 'Škoda', 'Smart', 'Syrena', 'Talbot',
+       'Tavria', 'Tesla', 'Vanderhall', 'Vauxhall', 'Wartburg',
+       'Zaporożec', 'Zastava'])
+        fuel = st.selectbox("Fuel", ['Gasoline', 'Gasoline + LPG', 'Diesel', 'Hybrid', 'Gasoline + CNG',
+       'Hydrogen'])
+        color = st.selectbox("Color", ["Black","White","Grey","Silver","Blue","Red", 'Yellow', 'Green', "Other"])
         first_owner = st.selectbox("First Owner?", ["Yes","No"])
-        condition = st.selectbox("Condition", ["New","Used","Very Good","Excellent","Poor"])
+        condition = st.selectbox("Condition", ["New","Used"])
         is_popular_color = st.selectbox("Popular Color?", ["Yes","No"])
         is_premium_car = st.selectbox("Premium Car?", ["Yes","No"])
-        origin_country = st.text_input("Origin Country", "Poland")
-        offer_location = st.text_input("Offer Location", "City")
-        num_features = st.number_input("Number of Features", 0, 50, 5)
-        features = st.text_input("Features (comma separated)", "")
+        year = st.slider("Production Year", 1980, 2026, 1980)
+        mileage = st.slider("Mileage (km)", 0, 1_000_000, 0)
+        annual_mileage = st.slider("Annual Mileage (km)", 0, 100_000, 0)
+
+    num_features = st.slider("Number of Features", 0, 50, 0)
+    features = st.text_input("Features (comma separated)", "")
+
+    with c2:
+        model_name = st.text_input("Vehicle Model", "Unknown")
+        gearbox = st.selectbox("Transmission", ["Manual","Automatic"])
+        body = st.selectbox("Body Type", ['small_cars', 'coupe', 'city_cars', 'convertible', 'compact',
+       'SUV', 'sedan', 'station_wagon', 'minivan'])
+        drive = st.selectbox("Drive", ['Front wheels' ,'Rear wheels', '4x4 (attached automatically)',
+       '4x4 (permanent)', '4x4 (attached manually)'])
+        origin_country = st.selectbox("Origin Country", ["Germany","USA","Japan","France","Italy","United Kingdom",
+        "South Korea","China","Sweden","Spain","Netherlands","Belgium","Canada","Australia","India","Russia","Mexico",
+        "Brazil","Czech Republic","Poland","Turkey","Austria","Switzerland","Denmark","Norway","Finland","Portugal",
+        "Greece","Thailand","Vietnam"])
+        offer_location = st.selectbox("Offer Location", ["Warsaw","Kraków","Łódź","Wrocław","Poznań","Gdańsk","Szczecin",
+        "Bydgoszcz","Lublin","Białystok","Katowice","Gdynia","Częstochowa","Radom","Sosnowiec","Toruń","Kielce","Rzeszów",
+        "Gliwice","Zabrze","Olsztyn","Bielsko-Biała","Bytom","Ruda Śląska","Rybnik","Opole","Tychy","Gorzów Wielkopolski",
+        "Dąbrowa Górnicza","Elbląg","Płock","Wałbrzych","Włocławek","Tarnów","Chorzów","Kalisz","Koszalin","Legnica","Grudziądz",
+        "Słupsk","Jaworzno","Jastrzębie-Zdrój","Nowy Sącz","Jelenia Góra","Konin","Piotrków Trybunalski","Inowrocław","Lubin",
+        "Ostrowiec Świętokrzyski","Suwałki"])
         age_category = st.selectbox("Age category", ["New", "Young", "Middle aged", "Old"])
+        displacement = st.slider("Displacement (cm³)", 600, 6000, 600)
+        vehicle_age = st.slider("Vehicle Age (years)", 0, 50, 0)
+        power = st.slider("Power (HP)", 50, 800, 50)
 
     if st.button("Predict Price 💰", use_container_width=True):
         try:
@@ -184,13 +216,13 @@ The model considers a comprehensive set of features covering car specifications,
 ### Model Performance (Test Set)
 | Metric | Value |
 |--------|-------|
-| R²     | 94.5% |
-| RMSE   | 14,727 PLN |
-| MAE    | 7,023 PLN |
-| MAPE   | 15.96% |
+| R²     | 94.3% |
+| RMSE   | 14,150 PLN |
+| MAE    | 6,838 PLN |
+| MAPE   | 15.8% |
 
 **Interpretation:**
-- **R² = 94.5%**: The model explains almost all the variance in car prices, showing a strong fit.  
+- **R² = 94.3%**: The model explains almost all the variance in car prices, showing a strong fit.  
 - **RMSE & MAE**: Indicate typical prediction errors in PLN; the model provides reliable estimates for most vehicles.  
 - **MAPE ~16%**: On average, predictions deviate by ~16% from actual prices, with larger errors likely for rare or premium cars.
 
