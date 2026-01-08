@@ -1,12 +1,20 @@
-pandas
-numpy
-matplotlib
-seaborn
-scipy
-scikit-learn
-xgboost
-optuna
-joblib
-requests
-streamlit
-huggingface-hub
+# Core data libraries
+pandas==2.1.4
+numpy==1.26.4
+scipy==1.11.4
+matplotlib==3.7.2
+seaborn==0.13.2
+
+# Machine Learning
+scikit-learn==1.7.2
+xgboost==1.7.6
+optuna==3.5.0
+joblib==1.3.2
+
+# Web / API
+requests==2.32.5
+streamlit==1.29.0
+huggingface-hub==0.20.2
+
+# Ensure compatible Python version
+# python_version < 3.12
