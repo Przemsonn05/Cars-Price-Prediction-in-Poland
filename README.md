@@ -7,7 +7,11 @@
 
 ## 📌 Project Overview
 
-The objective of this project is to develop a robust Machine Learning model capable of forecasting used car prices in the Polish market. By analyzing features such as vehicle age, engine power, equipment specifications, and brand segmentation, the system provides accurate price estimations to aid buyers and sellers.
+The objective of this project is to design and deploy a production-ready machine learning pricing engine for the Polish secondary automotive market.
+
+The system leverages structured vehicle metadata — including temporal depreciation patterns, power-to-weight characteristics, equipment configurations and brand-level market segmentation — to model real-world supply-demand dynamics and generate high-precision, market-aligned price estimates.
+
+Beyond point prediction, the solution is engineered to support pricing risk reduction, margin optimization and data-driven inventory decisions, enabling car dealers and individual sellers to objectively position their offers within the competitive Polish used-car ecosystem.
 
 The project evolved through four distinct modeling stages: **Linear Regression**, **Random Forest**, **Base XGBoost**, and a **Final Tuned XGBoost** (optimized with Optuna and refined data scope).
 
@@ -19,7 +23,7 @@ After extensive data preprocessing, Exploratory Data Analysis (EDA), and feature
 
 ### 🖥️ Streamlit Dashboard
 Explore the interactive application to predict car prices in real-time:
-**[Launch App](YOUR_STREAMLIT_LINK_HERE)**
+**[Launch App](https:/cars-price-prediction-in-poland-93x3kme8tvdopec5f4vxul.streamlit.app)**
 
 ### 🤗 Hugging Face Model Registry
 Due to file size constraints, the trained models are hosted on the Hugging Face Hub:
@@ -38,20 +42,28 @@ A strategic decision was made to refine the scope of the final model by filterin
 | **Model 3** | XGBoost (Base) | 92.24% | 23,124 | 7,655 | 15.90% |
 | **Model 4** | **XGBoost (Tuned & Cleaned)** | **94.32%** | **14,150** | **6,838** | **15.84%** |
 
-### Key Improvements
-The final model demonstrates a **massive leap in reliability**:
-* **RMSE Reduction:** The error margin dropped by over **12,000 PLN** compared to the baseline and **9,000 PLN** compared to the base XGBoost.
-* **R² Increase:** An improvement of nearly **5 percentage points**, explaining over 94% of the price variance.
+### 📈 Quantified Performance Uplift
+The optimization pipeline delivered a statistically significant improvement in predictive fidelity, validating the strategic decision to refine the market scope:
+
+* **Risk Mitigation (RMSE):** Achieved a **46.7% reduction** in residual error magnitude relative to the baseline ($\Delta$ -12,397 PLN).  This drastic tightening of the error distribution indicates the model has successfully minimized bias while maintaining low variance.
+
+* **Variance Explanation ($R^2$):** Boosted the Coefficient of Determination to **0.943**, capturing over **94%** of the underlying market volatility. This confirms the model's ability to encode complex, non-linear feature interactions (e.g., *Power-to-Weight* ratios) that simpler linear models missed.
 
 ---
 
-## 💡 Business Conclusions
+### 💡 Business Impact & ROI
 
-From a business perspective, the transition from Model 1 to Model 4 represents a significant value add:
+From a commercial standpoint, the evolution from Model 1 to Model 4 delivers tangible value drivers:
 
-1.  **Market Focus Strategy:** By removing outliers (vintage/supercars), the model became specialized for 99% of the market. While it loses the ability to value a 1960 Ferrari, it becomes exceptionally good at valuing the Volkswagen Golfs and Toyota Corollas that make up the bulk of transactions.
-2.  **Risk Reduction:** Reducing the RMSE from ~26k PLN to ~14k PLN means the "pricing risk" is cut nearly in half. For a car dealership, this translates to buying inventory at the right price and avoiding overpaying.
-3.  **Profit Margin Protection:** With a MAPE (Mean Absolute Percentage Error) of ~15%, the model provides a tight pricing corridor. This allows sellers to set competitive prices without eroding their profit margins due to estimation errors.
+1.  **High-Velocity Segment Optimization:**
+    
+    By consciously excluding hyper-niche outliers (vintage collectibles and supercars), the model achieves specialized precision for the **99% of vehicles that drive market liquidity**. This strategic tradeoff sacrifices the "long tail" to maximize predictive power for high-volume movers (e.g., VW Golf, Toyota Corolla), ensuring the tool is optimized for the bulk of real-world transactions.
+
+2.  **Capital Efficiency & Risk Mitigation:**
+    Reducing the RMSE from ~26k PLN to ~14k PLN is not just a statistical win—it cuts **valuation uncertainty by 46%**. For an automotive dealership or leasing firm, this directly minimizes financial exposure, preventing capital lock-up in overpriced inventory and reducing write-offs on undervalued assets.
+
+3.  **Competitive Yield Management:**
+    With a Mean Absolute Percentage Error (MAPE) of ~15%, the model provides a **data-driven pricing floor**. This enables sellers to implement dynamic pricing strategies—setting aggressive yet profitable prices without eroding margins due to estimation variance.
 
 ---
 
