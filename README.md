@@ -38,7 +38,7 @@ A strategic decision was made to refine the scope of the final model by filterin
 ### 📉 Metric Comparison
 The following chart illustrates the progressive reduction in error rates across model iterations.
 
-![Metric Comparison Chart]("images/model_comparison.png")
+![Metric Comparison Chart](images/model_comparison.png)
 *(Place your metrics comparison bar chart here, e.g., images/metrics_comparison.png)*
 
 | Model Version | Description | R² Score | RMSE (PLN) | MAE (PLN) | MAPE (%) |
