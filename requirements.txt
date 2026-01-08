@@ -7,5 +7,4 @@ scikit-learn
 xgboost
 optuna
 joblib
-warnings
 requests
