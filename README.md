@@ -23,7 +23,7 @@ After extensive data preprocessing, Exploratory Data Analysis (EDA), and feature
 
 ### 🖥️ Streamlit Dashboard
 Explore the interactive application to predict car prices in real-time:
-**[Launch App](https:/cars-price-prediction-in-poland-93x3kme8tvdopec5f4vxul.streamlit.app)**
+**[Launch App](https://cars-price-prediction-in-poland-93x3kme8tvdopec5f4vxul.streamlit.app/)**
 
 ### 🤗 Hugging Face Model Registry
 Due to file size constraints, the trained models are hosted on the Hugging Face Hub:
