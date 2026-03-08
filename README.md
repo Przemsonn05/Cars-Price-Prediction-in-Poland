@@ -288,15 +288,15 @@ Correlation heatmap reveals multicollinearity and predictive relationships.
 
 #### 📋 EDA Summary
 
-Overall, the EDA provided crucial insights into distributions, feature importance, and relationships, informing subsequent preprocessing, feature engineering, and modeling steps.
+Overall, the Exploratory Data Analysis (EDA) phase provided a comprehensive understanding of the dataset’s structure, distributions, and underlying relationships between variables. By examining both numerical and categorical features, it was possible to identify key patterns influencing vehicle prices, detect anomalies and outliers, and evaluate potential sources of noise within the data.
+
+The analysis also helped reveal important interactions between variables such as vehicle age, mileage, engine power, and fuel type, which play a significant role in determining market value. In addition, correlation analysis and visual exploration highlighted features with strong predictive potential, guiding the selection of variables that could contribute meaningfully to the modeling process.
 
 ---
 
 ### 🔧 Feature Engineering
 
 To capture the complex, non-linear dynamics of the automotive market, a robust feature engineering strategy and automated preprocessing pipeline were implemented. The goal was to transform raw categorical and numerical data into high-signal inputs while maintaining strict separation between training and test sets to prevent **data leakage**.
-
----
 
 #### 1. Domain-Driven Feature Synthesis
 
@@ -360,7 +360,7 @@ This approach ensures that the model can learn complex, non-linear relationships
 
 ### 📈 Model Training & Performance
 
-### 🏗 Modeling & Iterative Development
+#### 🏗 Modeling & Iterative Development
 
 The modeling phase followed an **incremental complexity approach**, progressing from interpretable baselines to high-performance ensemble methods. Each model was evaluated using **R², MAE, RMSE, and MAPE** to track improvements in predictive accuracy and error reduction.
 
@@ -382,7 +382,7 @@ The Linear Regression model explains approximately 83% of the variance in car pr
 - **MAPE:** 29.3% — relative error across the dataset.  
 - **RMSE:** 34,358 PLN — indicates sensitivity to outliers, particularly luxury, supercars, and rare collector vehicles.  
 
-*Conclusion:* Linear Regression provides a solid baseline but cannot capture complex, non-linear relationships in the market.
+*Conclusion:* Linear Regression serves as a useful baseline model, providing a simple and interpretable benchmark for evaluating more advanced approaches. It captures the general linear trends present in the dataset and explains a substantial portion of the variance in vehicle prices. However, due to its inherent assumption of linear relationships between features and the target variable, the model is unable to fully represent the complex, non-linear dynamics that characterize the used car market.
 
 ---
 
@@ -400,7 +400,7 @@ The Linear Regression model explains approximately 83% of the variance in car pr
 - **Error Reduction:** MAE reduced by ~50% compared to Linear Regression.  
 - **Generalization:** Training and test metrics are balanced, showing minimal overfitting.
 
-*Conclusion:* Random Forest significantly improves predictive power and captures complex interactions in pricing dynamics.
+*Conclusion:* The Random Forest model significantly improves predictive performance compared to the linear baseline by introducing non-linear decision boundaries and the ability to capture complex feature interactions. As an ensemble of decision trees trained using bootstrap aggregation (bagging), Random Forest is capable of modeling intricate relationships between variables such as vehicle age, mileage, engine power, and brand reputation. This allows the model to better reflect the underlying pricing dynamics of the automotive market, where multiple factors interact in non-linear ways.
 
 ---
 
@@ -417,25 +417,7 @@ The Linear Regression model explains approximately 83% of the variance in car pr
 - **MAE:** 7,990 PLN  
 - **MAPE:** 16.8%  
 
-*Conclusion:* XGBoost captures non-linear relationships more effectively than Random Forest, though base models can overfit without regularization.
-
----
-
-#### 4. Final Optimization: XGBoost (Hyperparameter-Tuned)
-
-- **Role:** Refine the model for **generalization** using **Optuna hyperparameter optimization**.  
-- **Strategy:**  
-  - Applied strong regularization (Gamma, Alpha, Lambda).  
-  - Early stopping and smoothing strategies enforced stable learning.  
-- **Outcome:** R² = 92.5%, balanced train and test performance.  
-- **Insights:**  
-  - Slight decrease in raw metrics offset by **robust generalization**.  
-  - Handles non-linear interactions without overfitting, suitable for real-market deployment.
-
-**Metrics on Test Set:**  
-- **RMSE:** 22,918 PLN — larger errors occur mainly for high-priced or rare vehicles.  
-- **MAE:** 8,062 PLN — average deviation from actual prices.  
-- **MAPE:** 17.2% — acceptable for a diverse market with prices ranging from a few thousand PLN to millions.  
+*Conclusion:* XGBoost further improves the modeling of complex pricing dynamics by leveraging gradient boosting, which sequentially builds trees that focus on correcting the residual errors of previous iterations. This approach allows the model to capture non-linear relationships and subtle feature interactions more effectively than Random Forest. As a result, it can better represent intricate dependencies between variables such as vehicle age, mileage, engine power, and brand. However, due to its high flexibility and capacity to fit complex patterns, a base XGBoost model may be prone to overfitting if not properly regularized.
 
 ---
 
@@ -453,13 +435,43 @@ The main contributors to prediction errors are **rare and niche vehicles** (e.g.
 
 ---
 
+#### 4. Final Optimization: XGBoost (Hyperparameter-Tuned)
+
+- **Role:** Refine the model for **generalization** using **Optuna hyperparameter optimization**.  
+- **Strategy:**  
+  - Create new features e.g. `Brand_frequency`, `Brand_category` and `Brand_popularity` to help the model predict niche/rare/luxury cars more effective
+  - Applied strong regularization (Gamma, Alpha, Lambda) and master other hyperparameters.  
+  - Early stopping and smoothing strategies enforced stable learning.  
+- **Outcome:** R² = 92.5%, balanced train and test performance.  
+- **Insights:**  
+  - Slight decrease in raw metrics offset by **robust generalization**.  
+  - Handles non-linear interactions without overfitting, suitable for real-market deployment.
+
+**Metrics on Test Set:**  
+- **RMSE:** 22,918 PLN — larger errors occur mainly for high-priced or rare vehicles.  
+- **MAE:** 8,062 PLN — average deviation from actual prices.  
+- **MAPE:** 17.2% — acceptable for a diverse market with prices ranging from a few thousand PLN to millions.  
+
+*Conclusion*
+
+The hyperparameter-tuned XGBoost model was selected as the final production model due to its strong balance between predictive accuracy and generalization capability. While earlier models achieved slightly higher raw scores, the optimized version demonstrated more stable learning behavior and reduced overfitting, as confirmed by the learning curves and consistent performance across training and test datasets.
+
+From a practical perspective, the model provides reliable vehicle price estimations with an average deviation of approximately **8,000 PLN**, which is relatively small given the extremely wide range of car prices in the dataset. This makes the model suitable for real-world applications such as dealership price estimation, inventory valuation, or automated listing price suggestions.
+
+Overall, the final pipeline combines robust feature engineering, careful preprocessing, and advanced model optimization, resulting in a scalable and production-ready solution for **automated car price prediction**.
+
+---
+
 #### 📊 Learning Curves
 
-The learning curve shows a **healthy bias–variance trade-off**:
+Learning curves were used to **diagnose model behavior during training** and evaluate the **bias–variance trade-off**. They help determine whether the model is overfitting, underfitting, or learning patterns that generalize well to unseen data.
+
+The learning curve shows a **healthy bias–variance balance**:
 
 - Training and validation curves converge smoothly, indicating minimal overfitting.  
-- Training error does not approach zero, confirming that the model generalizes rather than memorizes.  
-- Increasing the dataset size further (e.g., +50k samples) is unlikely to substantially improve performance.  
+- Training error does not approach zero, confirming that the model generalizes rather than memorizes the training data.  
+- As the training set size increases, the gap between the curves becomes smaller, suggesting reduced variance and stable learning.  
+- Increasing the dataset size further (e.g., +50k samples) is unlikely to substantially improve performance.
 
 ![Learning Curves](images/tuned_model_learning_curves.png)
 
@@ -469,8 +481,6 @@ This **staged modeling approach** demonstrates the value of progressing from int
 
 - **Hyperparameter Tuning:** Employed Optuna for Bayesian search in `src/model.py`.  
 - **Tuned Parameters:** learning rate, max depth, subsample ratio, `reg_alpha`, `reg_lambda`.
-
-![Model Comparison](images/model_comparison.png)
 
 #### 🏁 Model Selection & Performance
 
@@ -482,7 +492,9 @@ This **staged modeling approach** demonstrates the value of progressing from int
 
 - **Tuned XGBoost (Model 4, Production-Ready):** Optimized via Optuna with stronger regularization and smoothing. R² ≈ 92.6%, MAE ~8,000 PLN, MAPE ~17%. Offers **robust generalization**, handling typical market vehicles reliably while acknowledging higher errors for rare or luxury cars.  
 
-> Model 4 prioritizes **stability and real-world applicability** over marginally higher but overfitted metrics, making it ideal for deployment.
+**Model 4 prioritizes stability and real-world applicability over marginally higher but overfitted metrics, making it ideal for deployment.**
+
+![Model Comparison](images/model_comparison.png)
 
 ---
 
@@ -618,11 +630,13 @@ The final **Tuned XGBoost model (Model 4)** was selected for deployment due to i
 * **Real-time API:** Wrap the model with a REST API for integration into dealer platforms.
 * **Data expansion:** Continuously scrape new ads to keep the model up‑to‑date with market trends.
 
+---
+
 <div align="center">
 
 **⭐ If you found this project helpful, please star the repository!**
 
-[![GitHub stars](https://img.shields.io/github/stars/Przemsonn/car-price-prediction?style=social)](https://https://github.com/Przemsonn05/Cars-Price-Prediction-in-Poland)
+[![GitHub stars](https://img.shields.io/github/stars/Przemsonn/Cars-Price-Prediction-in-Poland?style=social)](https://https://github.com/Przemsonn05/Cars-Price-Prediction-in-Poland)
 
 </div>
 
