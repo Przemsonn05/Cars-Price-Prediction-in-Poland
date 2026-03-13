@@ -634,17 +634,19 @@ The final **Tuned XGBoost model (Model 4)** was selected for deployment due to i
 * **Pandas, NumPy, Scikit-Learn** for data manipulation and pipelines
 * **XGBoost** for gradient boosting
 * **Optuna** for hyperparameter optimization
-* **Matplotlib, Seaborn** for visualization
+* **Matplotlib, Seaborn, Plotly** for static and interactive visualizations
+* **Folium + streamlit-folium** for interactive geospatial mapping
 * **Joblib** for model serialization
-* **Requests** for API interactions
-* **Streamlit** for deployment
+* **Requests** for NBP API currency conversion
+* **Streamlit** for deployment and interactive web application
+* **Hugging Face Hub** for model versioning and storage
 
 ---
 
 ## 📥 Installation & Usage
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/YourUsername/Car-Price-Prediction.git
+   git clone https://github.com/Przemsonn05/Car-Price-Prediction.git
    cd Car-Price-Prediction
    ```
 2. **Install dependencies:**
