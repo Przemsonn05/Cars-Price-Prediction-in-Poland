@@ -11,5 +11,5 @@ category-encoders
 scikit-learn
 streamlit==1.42.0
 altair==4.2.2
-folium
+folium==0.22.0
 plotly
