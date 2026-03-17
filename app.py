@@ -16,6 +16,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+if 'sidebar_visible' not in st.session_state:
+    st.session_state.sidebar_visible = True
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
@@ -378,10 +381,14 @@ def generate_otomoto_link(brand, model, year, price_min, price_max):
     base_url = "https://www.otomoto.pl/osobowe"
     brand_clean = brand.lower().replace(' ', '-').replace('ö', 'o').replace('é', 'e')
     model_clean = model.lower().replace(' ', '-') if model else ""
+
+    year_offset = 2026 - 2021
+    adjusted_year = year + year_offset
+
     params = {
         'search[filter_enum_make]': brand,
-        'search[filter_float_year:from]': max(year - 2, 1980),
-        'search[filter_float_year:to]': min(year + 2, 2026),
+        'search[filter_float_year:from]': max(adjusted_year - 1, 1915),
+        'search[filter_float_year:to]': min(adjusted_year + 1, 2026),
         'search[filter_float_price:from]': int(price_min * 0.89),
         'search[filter_float_price:to]': int(price_max * 1.10),
     }
@@ -391,7 +398,7 @@ def generate_otomoto_link(brand, model, year, price_min, price_max):
 
 def prepare_input_data(user_inputs):
     df = pd.DataFrame([user_inputs])
-    current_year = 2026
+    current_year = 2021
     df['Vehicle_age'] = current_year - df['Production_year']
 
     if isinstance(df['Features'].iloc[0], str):
@@ -487,6 +494,79 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+[data-testid="collapsedControl"] { display: none !important; }
+
+#sb-toggle {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 999999;
+    background: rgba(49,130,206,0.85);
+    border: 1px solid rgba(99,179,237,0.5);
+    color: white;
+    border-radius: 8px;
+    width: 38px;
+    height: 38px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    transition: background 0.2s;
+    font-family: sans-serif;
+    line-height: 1;
+}
+#sb-toggle:hover { background: rgba(49,130,206,1); }
+</style>
+
+<script>
+(function tryInit() {
+    const doc = window.parent.document;
+
+    // Usuń stary przycisk jeśli istnieje (przy rerun)
+    const old = doc.getElementById('sb-toggle');
+    if (old) old.remove();
+
+    // Stwórz nowy przycisk bezpośrednio w parent body
+    const btn = doc.createElement('button');
+    btn.id = 'sb-toggle';
+    btn.innerHTML = '☰';
+    btn.title = 'Toggle menu';
+
+    // Skopiuj style z <style> powyżej
+    btn.style.cssText = `
+        position: fixed; top: 14px; left: 14px; z-index: 999999;
+        background: rgba(49,130,206,0.85);
+        border: 1px solid rgba(99,179,237,0.5);
+        color: white; border-radius: 8px;
+        width: 38px; height: 38px; font-size: 18px;
+        cursor: pointer; display: flex;
+        align-items: center; justify-content: center;
+        backdrop-filter: blur(8px); transition: background 0.2s;
+        font-family: sans-serif;
+    `;
+
+    let hidden = false;
+
+    btn.addEventListener('click', function () {
+        const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+        if (!sidebar) return;
+
+        hidden = !hidden;
+        sidebar.style.transition = 'all 0.3s ease';
+        sidebar.style.display = hidden ? 'none' : '';
+        btn.innerHTML = hidden ? '▶' : '☰';
+        btn.title = hidden ? 'Show menu' : 'Hide menu';
+    });
+
+    doc.body.appendChild(btn);
+})();
+</script>
+""", unsafe_allow_html=True)
+
 def home_page():
     st.markdown("""
     <div style='padding: 60px 0 40px; text-align: center;'>
@@ -549,9 +629,7 @@ def home_page():
 
     After applying hyperparameter tuning and additional feature engineering, the tuned 
     XGBoost model did not significantly improve the metrics. The R² score decreased by 
-    about 2%, while MAPE increased by around 0.5%, and RMSE and MAE rose slightly. 
-    Despite this, the tuned model appears to produce more stable predictions due to the 
-    newly engineered features.
+    about 1.5%, while MAPE increased by around 0.4%, and RMSE and MAE rose slightly. 
 
     Analysis of MAPE by brand showed that the impact of feature engineering varied across 
     manufacturers. Prediction errors decreased for some brands but increased slightly for 
@@ -575,7 +653,7 @@ def home_page():
     <b style='color: #f7fafc;'>Car Price Prediction</b> is a machine learning project designed to estimate 
     used car prices on the Polish automotive market. The model analyzes historical listing data and 
     predicts vehicle values with an accuracy of approximately 
-    <b style='color: #63b3ed;'>R² = 92.4%</b>.
+    <b style='color: #63b3ed;'>R² = 94.3%</b>.
     </p>
 
     <p>
@@ -612,9 +690,16 @@ def home_page():
 def predict_page():
     st.markdown("""
     <h1 style='margin-bottom: 8px;'>🔮 Vehicle Valuation</h1>
-    <p style='color: #718096; margin-bottom: 32px; font-size: 16px;'>
+    <p style='color: #718096; margin-bottom: 16px; font-size: 16px;'>
         Fill in the form — fields marked with * are required.
     </p>
+    <div class='warning-box' style='margin-bottom: 28px;'>
+        <p>⚠️ <b>Data limitation:</b> The model was trained on listings up to <b>2021</b>.
+        For vehicles from that period, an <b>inflation adjustment</b> is applied automatically
+        to reflect current market prices. Predictions for post-2021 models may be less accurate
+        as those vehicles were not present in the training data. For educational project I set
+        2021 as a maximum production year of a car we want to predict.</p>
+    </div>
     """, unsafe_allow_html=True)
 
     if st.button("← Back"): navigate_to("home")
@@ -663,7 +748,7 @@ def predict_page():
             st.markdown("#### 🚗 Vehicle Details")
             brand_choice = st.selectbox("Brand *", ["— select —"] + brand_list)
             vehicle_model = st.text_input("Model", placeholder="e.g. Golf, Astra, Corolla…")
-            production_year = st.slider("Production Year *", 1950, 2026, 2015)
+            production_year = st.slider("Production Year *", 1915, 2021, 2010)
             mileage_km = st.slider("Mileage (km) *", 0, 1_000_000, 100_000, step=500)
             power_HP = st.slider("Power (HP) *", 10, 1_500, 150)
             displacement_cm3 = st.slider("Displacement (cm³) *", 500, 8_000, 2_000, step=1)
@@ -734,9 +819,29 @@ def predict_page():
 
                 final_df = prepare_input_data(user_inputs)
                 y_log = pipeline.predict(final_df)[0]
-                price = np.expm1(y_log)
+                price_raw = np.expm1(y_log)
+
+                def get_inflation_factor(production_year):
+                    vehicle_age_2021 = 2021 - production_year
+                    
+                    if vehicle_age_2021 <= 3:      
+                        return 1.45                 
+                    elif vehicle_age_2021 <= 8:    
+                        return 1.37                 
+                    elif vehicle_age_2021 <= 15:   
+                        return 1.25                 
+                    elif vehicle_age_2021 <= 30:  
+                        return 1.15                
+                    else:                          
+                        return 1.05      
+
+                INFLATION_FACTOR = get_inflation_factor(production_year)
+                price = price_raw * INFLATION_FACTOR          
+
                 price_min = price * 0.85
                 price_max = price * 1.15
+
+                inflation_applied = True
 
                 st.markdown(f"""
                 <div class='price-card'>
@@ -746,8 +851,17 @@ def predict_page():
                 </div>
                 """, unsafe_allow_html=True)
 
+                if inflation_applied:
+                    st.markdown(f"""
+                    <div class='info-box' style='margin-top: -8px; margin-bottom: 16px;'>
+                        <p>📈 <b>Inflation adjustment applied:</b> Base model estimate was
+                        <b>{price_raw:,.0f} PLN</b>. A factor of <b>×{INFLATION_FACTOR}</b>
+                        was applied to reflect Polish automotive market price growth since 2021.</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                 d1, d2, d3 = st.columns(3)
-                vehicle_age = 2026 - production_year
+                vehicle_age = 2021 - production_year
                 mileage_per_year = mileage_km / max(vehicle_age, 1)
                 hp_per_liter = power_HP / (displacement_cm3 / 1000)
 
@@ -886,10 +1000,10 @@ def visualizations_page():
     )
 
     st.markdown("### 💰 Price Distribution")
-    st.image(
-        "images/eda_price_distribution.png",
-        use_container_width=True
-    ) 
+    col1, col2, col3 = st.columns([0.5, 3, 0.5])
+    with col2:
+        st.image("images/eda_price_distribution.png", use_container_width=True)
+
     st.markdown("""
     <div class='info-box'><p>
     📌 The left chart shows a strongly right-skewed price distribution. 
@@ -909,10 +1023,11 @@ def visualizations_page():
     st.markdown("<hr>", unsafe_allow_html=True)
 
     st.markdown("### 📉 Value Depreciation")
-    st.image(
-        "images/eda_depreciation_analysis.png",
-        use_container_width=True
-    )
+
+    col1, col2, col3 = st.columns([0.5, 3, 0.5])
+    with col2:
+        st.image("images/eda_depreciation_analysis.png", use_container_width=True)
+
     st.markdown("""
     <div class='info-box'><p>
         📌 Vehicle depreciation is most pronounced during the first three years, when a 
@@ -933,10 +1048,10 @@ def visualizations_page():
     st.markdown("<hr>", unsafe_allow_html=True)
 
     st.markdown("### 🏆 Average Price by Brand")
-    st.image(
-        "images/eda_median_preice_top20_brands.png",
-        use_container_width=True
-    )
+
+    col1, col2, col3 = st.columns([0.5, 3, 0.5])
+    with col2:
+        st.image("images/eda_median_preice_top20_brands.png", use_container_width=True)
 
     st.markdown("""
     <div class='info-box'><p>
@@ -958,10 +1073,10 @@ def visualizations_page():
     st.markdown("<hr>", unsafe_allow_html=True)
 
     st.markdown("### 🎯 Most Important Model Features")
-    st.image(
-        "images/SHAP_feature_importance.png",
-        use_container_width=True
-    )
+
+    col1, col2, col3 = st.columns([0.5, 3, 0.5])
+    with col2:
+        st.image("images/SHAP_feature_importance.png", use_container_width=True)
 
     st.markdown("""
     <div class='info-box'><p>
@@ -982,96 +1097,6 @@ def visualizations_page():
     </p></div>
     """, unsafe_allow_html=True)
 
-def info_page():
-    st.markdown("""
-    <h1 style='margin-bottom: 8px;'>🧠 How the Model Works</h1>
-    <p style='color: #718096; margin-bottom: 32px; font-size: 16px;'>
-        Architecture, training process and limitations of the XGBoost model.
-    </p>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-### 🎯 Model Overview
-The application uses an **XGBoost** model trained on data from the Polish automotive market
-to estimate **used car prices**.
-
----
-
-### 🚀 Why XGBoost?
-
-| Model | R² | MAPE | Status |
-|-------|-----|------|--------|
-| Linear Regression | 0.831 | 29.3% | ❌ Baseline |
-| Random Forest | 0.938 | 20.0% | ✅ Good |
-| **XGBoost (tuned)** | **0.924** | **17.2%** | ⭐ Selected |
-
-**Key advantages:**
-- 🎯 Gradient Boosting — sequentially improves predictions
-- 🛡️ Robust to noise and missing values
-- ⚡ Lightning-fast predictions (< 1 s)
-- 🔧 L1/L2 regularisation — prevents overfitting
-
----
-
-### 📊 Model Features
-
-**Base features:** Brand, Model, Year, Mileage, Power, Displacement, Fuel, Transmission, Drive, Body type, Colour, Location, Condition, Country of origin
-
-**Engineered features:**
-- `HP_per_liter`, `Mileage_per_year`, `Usage_intensity`
-- `Age_category`, `Brand_category`, `Is_premium`, `is_collector`
-- Interactions: `Age × Mileage`, `Power × Age`
-- Log-transforms and squared features
-
----
-
-### 🎯 Model Results
-
-| Metric | Value | Interpretation |
-|--------|-------|----------------|
-| **R²** | 92.4% | Explains ~92.5% of price variance |
-| **RMSE** | 23,048 PLN | Typical absolute error |
-| **MAE** | 8,109 PLN | Mean absolute error |
-| **MAPE** | 17.2% | ~17% relative deviation |
-
----
-
-### 🔬 Training Process
-
-1. **Data collection** — 200,000+ listings from Polish platforms
-2. **Preprocessing** — duplicate removal, outlier handling, normalisation
-3. **Feature Engineering** — support for the model
-4. **Model selection** — comparison of 3 algorithms
-5. **Tuning** — Optuna (50+ Bayesian optimisation trials)
-6. **Validation** — 80/20 split, cross-validation
-7. **Deployment** — Streamlit + Hugging Face Hub
-
----
-
-### ⚠️ Limitations
-
-✅ **Model performs well for:**
-- Mass-market cars (VW, Toyota, Ford, Opel, Škoda)
-- Standard configurations (100–300 HP, 50–200k km)
-- Vehicles from 2010–2024
-
-⚠️ **Lower accuracy for:**
-- Luxury brands (Ferrari, Lamborghini, Rolls-Royce)
-- Vintage cars (> 30 years old)
-- Rare models (< 20 entries in the dataset)
-- Custom factory modifications not captured in features
-
----
-
-### 🛠️ Tech Stack
-
-- **ML:** XGBoost, scikit-learn, category-encoders
-- **Optimisation:** Optuna (Bayesian search)
-- **Data processing:** Pandas, NumPy
-- **Deployment:** Streamlit, Hugging Face Hub
-- **Visualisations:** Plotly, Folium
-""")
-
 page = st.session_state.page
 if page == 'home':
     home_page()
@@ -1081,5 +1106,3 @@ elif page == 'regional':
     regional_page()
 elif page == 'visualizations':
     visualizations_page()
-elif page == 'info':
-    info_page()
