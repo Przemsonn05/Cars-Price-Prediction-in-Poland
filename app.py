@@ -1097,6 +1097,96 @@ def visualizations_page():
     </p></div>
     """, unsafe_allow_html=True)
 
+def info_page():
+    st.markdown("""
+    <h1 style='margin-bottom: 8px;'>🧠 How the Model Works</h1>
+    <p style='color: #718096; margin-bottom: 32px; font-size: 16px;'>
+        Architecture, training process and limitations of the XGBoost model.
+    </p>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+### 🎯 Model Overview
+The application uses an **XGBoost** model trained on data from the Polish automotive market
+to estimate **used car prices**.
+
+---
+
+### 🚀 Why XGBoost?
+
+| Model | R² | MAPE | Status |
+|-------|-----|------|--------|
+| Linear Regression | 0.831 | 29.3% | ❌ Baseline |
+| Random Forest | 0.938 | 20.0% | ✅ Good |
+| **XGBoost (tuned)** | **0.924** | **17.2%** | ⭐ Selected |
+
+**Key advantages:**
+- 🎯 Gradient Boosting — sequentially improves predictions
+- 🛡️ Robust to noise and missing values
+- ⚡ Lightning-fast predictions (< 1 s)
+- 🔧 L1/L2 regularisation — prevents overfitting
+
+---
+
+### 📊 Model Features
+
+**Base features:** Brand, Model, Year, Mileage, Power, Displacement, Fuel, Transmission, Drive, Body type, Colour, Location, Condition, Country of origin
+
+**Engineered features:**
+- `HP_per_liter`, `Mileage_per_year`, `Usage_intensity`
+- `Age_category`, `Brand_category`, `Is_premium`, `is_collector`
+- Interactions: `Age × Mileage`, `Power × Age`
+- Log-transforms and squared features
+
+---
+
+### 🎯 Model Results
+
+| Metric | Value | Interpretation |
+|--------|-------|----------------|
+| **R²** | 92.4% | Explains ~92.5% of price variance |
+| **RMSE** | 23,048 PLN | Typical absolute error |
+| **MAE** | 8,109 PLN | Mean absolute error |
+| **MAPE** | 17.2% | ~17% relative deviation |
+
+---
+
+### 🔬 Training Process
+
+1. **Data collection** — 200,000+ listings from Polish platforms
+2. **Preprocessing** — duplicate removal, outlier handling, normalisation
+3. **Feature Engineering** — support for the model
+4. **Model selection** — comparison of 3 algorithms
+5. **Tuning** — Optuna (50+ Bayesian optimisation trials)
+6. **Validation** — 80/20 split, cross-validation
+7. **Deployment** — Streamlit + Hugging Face Hub
+
+---
+
+### ⚠️ Limitations
+
+✅ **Model performs well for:**
+- Mass-market cars (VW, Toyota, Ford, Opel, Škoda)
+- Standard configurations (100–300 HP, 50–200k km)
+- Vehicles from 2010–2024
+
+⚠️ **Lower accuracy for:**
+- Luxury brands (Ferrari, Lamborghini, Rolls-Royce)
+- Vintage cars (> 30 years old)
+- Rare models (< 20 entries in the dataset)
+- Custom factory modifications not captured in features
+
+---
+
+### 🛠️ Tech Stack
+
+- **ML:** XGBoost, scikit-learn, category-encoders
+- **Optimisation:** Optuna (Bayesian search)
+- **Data processing:** Pandas, NumPy
+- **Deployment:** Streamlit, Hugging Face Hub
+- **Visualisations:** Plotly, Folium
+""")
+
 page = st.session_state.page
 if page == 'home':
     home_page()
@@ -1106,3 +1196,5 @@ elif page == 'regional':
     regional_page()
 elif page == 'visualizations':
     visualizations_page()
+elif page == 'info':
+    info_page()

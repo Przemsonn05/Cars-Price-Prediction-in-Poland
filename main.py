@@ -187,7 +187,7 @@ def step_2_exploratory_analysis(df: pd.DataFrame) -> None:
     print_step(2, 7, "EXPLORATORY DATA ANALYSIS")
     
     if 'Production_year' in df.columns and 'Vehicle_age' not in df.columns:
-        df['Vehicle_age'] = 2026 - df['Production_year']
+        df['Vehicle_age'] = 2021 - df['Production_year']
     
     print("Generating EDA visualizations...")
     
@@ -610,7 +610,7 @@ def run_tests() -> bool:
         df_clean = clean_car_data(df_raw)
         
         if 'Vehicle_age' not in df_clean.columns and 'Production_year' in df_clean.columns:
-            df_clean['Vehicle_age'] = 2026 - df_clean['Production_year']
+            df_clean['Vehicle_age'] = 2021 - df_clean['Production_year']
   
         fig = plot_price_distribution(df_clean)
         plt.close(fig)
