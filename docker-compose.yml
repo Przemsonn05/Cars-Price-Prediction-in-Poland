@@ -1,0 +1,12 @@
+services:
+  car-app:
+    build: .
+    container_name: car_ads_container
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HUB_DISABLE_SYMLINKS_WARNING=1
