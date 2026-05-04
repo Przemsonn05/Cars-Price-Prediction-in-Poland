@@ -13,7 +13,6 @@ This script runs the complete ML pipeline:
        Streamlit app loads)
 
 Usage::
-
     python main.py --mode full                  # end-to-end
     python main.py --mode test                  # smoke tests
     python main.py --mode train                 # training only
@@ -27,20 +26,15 @@ Usage::
 
 import sys
 from pathlib import Path
-
-# Ensure src/ is importable when this file is run directly.
 sys.path.insert(0, str(Path(__file__).parent))
-
 import argparse
 import warnings
 from datetime import datetime
 from typing import Optional
-
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
 from src.data import load_raw_data, save_processed_data
 from src.evaluation import (
     calculate_metrics,
@@ -57,6 +51,7 @@ from src.evaluation import (
 from src.features import (
     apply_advanced_transformations,
     engineer_base_features,
+    filter_mass_market_cars,
     get_preprocessor_mastered,
     get_preprocessor_tree,
 )
@@ -64,6 +59,7 @@ from src.models import (
     build_production_pipeline,
     get_log_transformed_target,
     get_predictions,
+    train_mass_market_xgboost,
     train_random_forest_search,
     train_ridge_grid_search,
     train_xgboost_optuna,
@@ -80,11 +76,8 @@ from src.visualization import (
     plot_price_distribution,
 )
 
-# Limit warning-silencing to noisy third-party categories only, instead of
-# the previous global `warnings.filterwarnings('ignore')` which hid real bugs.
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
-
 
 class Config:
     """Project configuration."""
@@ -99,7 +92,6 @@ class Config:
     IMAGES_DIR = PROJECT_ROOT / "images"
     REPORTS_DIR = PROJECT_ROOT / "reports"
 
-    #: Name expected by app.py / Hugging Face.
     PRODUCTION_MODEL_NAME = "final_car_price_model.joblib"
 
     RANDOM_STATE = 42
@@ -123,21 +115,17 @@ class Config:
         ]:
             directory.mkdir(parents=True, exist_ok=True)
 
-
 config = Config()
-
 
 def print_header(text: str, char: str = "=") -> None:
     print("\n" + char * 80)
     print(text.center(80))
     print(char * 80 + "\n")
 
-
 def print_step(step_num: int, total_steps: int, description: str) -> None:
     print(f"\n{'=' * 80}")
     print(f"STEP {step_num}/{total_steps}: {description}")
     print(f"{'=' * 80}\n")
-
 
 def save_metrics_report(
     metrics_dict: dict,
@@ -159,10 +147,10 @@ def save_metrics_report(
             for label, m in (("Training Set", metrics["train"]), ("Test Set", metrics["test"])):
                 f.write(f"\n{label}:\n")
                 f.write(f"  R^2 Score : {m['R2']:.4f}\n")
-                f.write(f"  RMSE      : {m['RMSE']:,.2f} PLN\n")
-                f.write(f"  MAE       : {m['MAE']:,.2f} PLN\n")
-                f.write(f"  MAPE      : {m['MAPE'] * 100:.2f}%\n")
-                f.write(f"  MdAPE     : {m['MdAPE'] * 100:.2f}%\n")
+                f.write(f"  RMSE : {m['RMSE']:,.2f} PLN\n")
+                f.write(f"  MAE : {m['MAE']:,.2f} PLN\n")
+                f.write(f"  MAPE : {m['MAPE'] * 100:.2f}%\n")
+                f.write(f"  MdAPE : {m['MdAPE'] * 100:.2f}%\n")
 
         f.write(f"\n{'=' * 80}\nMODEL COMPARISON (Test Set)\n{'=' * 80}\n\n")
         comparison_df = pd.DataFrame(model_comparison).T
@@ -176,12 +164,6 @@ def save_metrics_report(
             f.write(f"\n{'=' * 80}\n{format_cv_summary(cv_summary)}\n{'=' * 80}\n")
 
     print(f"Metrics report saved: {save_path}")
-
-
-# ---------------------------------------------------------------------------
-# Pipeline steps.
-# ---------------------------------------------------------------------------
-
 
 def step_1_load_and_clean_data() -> pd.DataFrame:
     """Step 1: Load and clean the training dataset.
@@ -223,7 +205,6 @@ def step_1_load_and_clean_data() -> pd.DataFrame:
     print(f"Missing values: {df_clean.isnull().sum().sum()}")
     return df_clean
 
-
 def step_2_exploratory_analysis(df: pd.DataFrame) -> None:
     """Step 2: EDA plots."""
     print_step(2, 8, "EXPLORATORY DATA ANALYSIS")
@@ -247,7 +228,6 @@ def step_2_exploratory_analysis(df: pd.DataFrame) -> None:
 
     print(f"\nEDA plots saved to: {config.IMAGES_DIR}")
 
-
 def _report_nans(df: pd.DataFrame, stage: str = "") -> None:
     """Log how many NaNs remain in each critical column."""
     key_cols = ["Vehicle_age", "Mileage_km", "Power_HP", "Displacement_cm3", "Vehicle_brand", "price_PLN"]
@@ -257,7 +237,6 @@ def _report_nans(df: pd.DataFrame, stage: str = "") -> None:
             n = df[col].isnull().sum()
             if n > 0:
                 print(f"  {col:<20}: {n:,}  ({n / len(df) * 100:.2f}%)")
-
 
 def step_3_feature_engineering(df: pd.DataFrame) -> tuple:
     """Step 3: Feature engineering + train/test split.
@@ -301,7 +280,6 @@ def step_3_feature_engineering(df: pd.DataFrame) -> tuple:
     y_log = get_log_transformed_target(y_train, y_test)
     return X_train, X_test, y_train, y_test, y_log["y_train_log"], y_log["y_test_log"]
 
-
 def step_4_train_models(X_train, y_train, y_train_log) -> dict:
     """Step 4: Train all four model variants."""
     print_step(4, 8, "MODEL TRAINING")
@@ -325,7 +303,6 @@ def step_4_train_models(X_train, y_train, y_train_log) -> dict:
         X_train, y_train_log, n_trials=config.XGB_N_TRIALS, n_folds=config.XGB_CV_FOLDS,
     )
     return models
-
 
 def step_5_evaluate_models(models, X_train, X_test, y_train, y_test) -> tuple:
     """Step 5: Evaluate all trained models."""
@@ -360,7 +337,6 @@ def step_5_evaluate_models(models, X_train, X_test, y_train, y_test) -> tuple:
     best_model = comparison_df["R2"].idxmax()
     print(f"\nBest model: {best_model} (R^2 = {comparison_df.loc[best_model, 'R2']:.4f})")
     return metrics_dict, model_comparison, best_model
-
 
 def step_6_generate_visualizations(
     models, metrics_dict, model_comparison,
@@ -413,7 +389,6 @@ def step_6_generate_visualizations(
     plt.close(fig)
 
     print(f"\nEvaluation plots saved to: {config.IMAGES_DIR}")
-
 
 def step_7_save_models(models: dict, upload: Optional[bool] = None) -> None:
     """Step 7: Save experiment models as individual .pkl files."""
@@ -519,12 +494,6 @@ def step_8_train_production_model(df_clean: pd.DataFrame, upload: Optional[bool]
 
     return output_path
 
-
-# ---------------------------------------------------------------------------
-# Smoke tests.
-# ---------------------------------------------------------------------------
-
-
 def run_tests() -> bool:
     print_header("RUNNING PROJECT SMOKE TESTS")
     ok = True
@@ -585,7 +554,6 @@ def run_tests() -> bool:
     print("\n" + ("ALL TESTS PASSED" if ok else "SOME TESTS FAILED"))
     return ok
 
-
 def run_full_pipeline() -> None:
     print_header("CAR PRICE PREDICTION — COMPLETE PIPELINE")
     start = datetime.now()
@@ -605,7 +573,6 @@ def run_full_pipeline() -> None:
     step_7_save_models(models, upload=False)
     step_8_train_production_model(df_clean, upload=False)
 
-    # Persist a CV report for the production pipeline alongside per-model metrics.
     cv_summary = cross_validate_model(
         build_production_pipeline(),
         df_clean.drop("price_PLN", axis=1),
@@ -622,9 +589,9 @@ def run_full_pipeline() -> None:
     duration = (datetime.now() - start).total_seconds()
     print_header("PIPELINE COMPLETED SUCCESSFULLY")
     print(f"Total execution time: {duration / 60:.1f} minutes")
-    print(f"  Models:   {config.MODELS_DIR}")
-    print(f"  Images:   {config.IMAGES_DIR}")
-    print(f"  Reports:  {config.REPORTS_DIR}")
+    print(f"Models: {config.MODELS_DIR}")
+    print(f"Images: {config.IMAGES_DIR}")
+    print(f"Reports: {config.REPORTS_DIR}")
 
 
 def run_data_collect(target_rows: int = 200_000, detail_mode: bool = False, mock: bool = False, output_path: Optional[Path] = None) -> None:
@@ -635,10 +602,10 @@ def run_data_collect(target_rows: int = 200_000, detail_mode: bool = False, mock
         output_path = config.DATA_DIR / "Car_sale_ads_balanced.csv"
 
     print_header("STRATIFIED DATA COLLECTION")
-    print(f"Target rows:   {target_rows:,}")
-    print(f"Detail mode:   {'Yes' if detail_mode else 'No'}")
-    print(f"Mock mode:     {'Yes' if mock else 'No'}")
-    print(f"Output path:   {output_path}\n")
+    print(f"Target rows: {target_rows:,}")
+    print(f"Detail mode: {'Yes' if detail_mode else 'No'}")
+    print(f"Mock mode: {'Yes' if mock else 'No'}")
+    print(f"Output path: {output_path}\n")
 
     start = datetime.now()
     print("Step 1/3  Fetching stratified listings from Otomoto...")
@@ -671,17 +638,16 @@ def run_data_collect(target_rows: int = 200_000, detail_mode: bool = False, mock
     duration = (datetime.now() - start).total_seconds()
     print_header("COLLECTION COMPLETE")
     print(f"Balanced rows saved: {len(df_balanced):,}")
-    print(f"Output file:         {output_path}")
-    print(f"Duration:            {duration:.1f}s  ({duration / 60:.1f} min)")
-
+    print(f"Output file: {output_path}")
+    print(f"Duration: {duration:.1f}s  ({duration / 60:.1f} min)")
 
 def run_data_update(pages: int = 10, detail_mode: bool = False, mock: bool = False) -> None:
     from src.data_fetcher import fetch_incremental
 
     print_header("DATA UPDATE: FETCHING NEW LISTINGS FROM OTOMOTO")
     print(f"Pages to fetch: {pages}  (~{pages * 32} listings)")
-    print(f"Detail mode:    {'Yes' if detail_mode else 'No'}")
-    print(f"Mock mode:      {'Yes' if mock else 'No'}\n")
+    print(f"Detail mode: {'Yes' if detail_mode else 'No'}")
+    print(f"Mock model: {'Yes' if mock else 'No'}\n")
 
     start = datetime.now()
     new_rows = fetch_incremental(
@@ -692,15 +658,14 @@ def run_data_update(pages: int = 10, detail_mode: bool = False, mock: bool = Fal
     duration = (datetime.now() - start).total_seconds()
     print_header("UPDATE COMPLETE")
     print(f"New rows appended: {len(new_rows):,}")
-    print(f"Dataset path:      {config.BALANCED_DATA_PATH}")
-    print(f"Duration:          {duration:.1f}s")
-
+    print(f"Dataset path: {config.BALANCED_DATA_PATH}")
+    print(f"Duration: {duration:.1f}s")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Car Price Prediction ML Pipeline")
     parser.add_argument(
         "--mode", type=str, default="full",
-        choices=["full", "test", "train", "visualize", "evaluate", "export", "production", "update", "collect"],
+        choices=["full", "test", "train", "visualize", "evaluate", "export", "production", "update", "collect", "mass_market"],
     )
     parser.add_argument("--pages", type=int, default=10)
     parser.add_argument("--target-rows", type=int, default=200_000)
@@ -743,9 +708,9 @@ def main() -> None:
 
         from src.utils import load_local_model
         models = {
-            "Ridge":            load_local_model(config.MODELS_DIR / "ridge_model.pkl"),
-            "RandomForest":     load_local_model(config.MODELS_DIR / "randomforest_model.pkl"),
-            "XGBoost_Base":     load_local_model(config.MODELS_DIR / "xgboost_base_model.pkl"),
+            "Ridge": load_local_model(config.MODELS_DIR / "ridge_model.pkl"),
+            "RandomForest": load_local_model(config.MODELS_DIR / "randomforest_model.pkl"),
+            "XGBoost_Base": load_local_model(config.MODELS_DIR / "xgboost_base_model.pkl"),
             "XGBoost_Weighted": load_local_model(config.MODELS_DIR / "xgboost_weighted_model.pkl"),
         }
         metrics_dict, model_comparison, best_model = step_5_evaluate_models(
@@ -766,21 +731,46 @@ def main() -> None:
         df_clean = step_1_load_and_clean_data()
         step_8_train_production_model(df_clean, upload=args.upload)
 
+    elif args.mode == "mass_market":
+        print_header("MASS-MARKET XGBOOST TRAINING")
+        df_clean = step_1_load_and_clean_data()
+        X_train, X_test, y_train, y_test, y_train_log, _ = step_3_feature_engineering(df_clean)
+
+        pipeline_mm, excluded_brands = train_mass_market_xgboost(
+            X_train, y_train_log,
+            n_trials=config.XGB_N_TRIALS,
+            n_folds=config.XGB_CV_FOLDS,
+        )
+
+        X_test_mm = filter_mass_market_cars(X_test, brands_to_exclude=excluded_brands, max_vehicle_age=30)
+        y_test_mm = y_test.loc[X_test_mm.index]
+        preds_pln = np.expm1(pipeline_mm.predict(X_test_mm))
+        test_m = calculate_metrics(y_test_mm, preds_pln)
+        print(
+            f"\nMass-market holdout  R^2={test_m['R2']:.4f}  "
+            f"MAPE={test_m['MAPE'] * 100:.2f}%  "
+            f"MdAPE={test_m['MdAPE'] * 100:.2f}%  "
+            f"MAE={test_m['MAE']:,.0f} PLN"
+        )
+
+        out_path = config.MODELS_DIR / "mass_market_model.pkl"
+        joblib.dump({"pipeline": pipeline_mm, "excluded_brands": excluded_brands}, out_path)
+        print(f"\nSaved: {out_path}")
+
     elif args.mode == "export":
         print_header("EXPORT / UPLOAD EXISTING MODELS")
         from src.utils import load_local_model
         try:
             models = {
-                "Ridge":            load_local_model(config.MODELS_DIR / "ridge_model.pkl"),
-                "RandomForest":     load_local_model(config.MODELS_DIR / "randomforest_model.pkl"),
-                "XGBoost_Base":     load_local_model(config.MODELS_DIR / "xgboost_base_model.pkl"),
+                "Ridge": load_local_model(config.MODELS_DIR / "ridge_model.pkl"),
+                "RandomForest": load_local_model(config.MODELS_DIR / "randomforest_model.pkl"),
+                "XGBoost_Base": load_local_model(config.MODELS_DIR / "xgboost_base_model.pkl"),
                 "XGBoost_Weighted": load_local_model(config.MODELS_DIR / "xgboost_weighted_model.pkl"),
             }
             step_7_save_models(models, upload=True)
         except FileNotFoundError as e:
             print(f"ERROR: {e}")
             sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

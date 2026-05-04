@@ -1,5 +1,3 @@
-# src/utils.py - POPRAWIONE
-
 import requests
 import os
 import joblib
@@ -8,7 +6,6 @@ from typing import Dict, Optional, Any
 from pathlib import Path
 from huggingface_hub import HfApi, login
 from typing import Union
-
 
 def get_current_eur_pln_rate(timeout: int = 5) -> float:
     """
@@ -37,7 +34,6 @@ def get_current_eur_pln_rate(timeout: int = 5) -> float:
     except Exception as e:
         print(f"[WARN] API failed ({e}). Using default rate: 4.30")
         return 4.30
-
 
 def upload_models_to_hf(
     models_dict: Dict[str, Any],
@@ -99,7 +95,6 @@ def upload_models_to_hf(
             print(f"[OK] Successfully uploaded: {filename}")
     
     print(f"\n[OK] All models uploaded to: https://huggingface.co/{repo_id}")
-
 
 def load_local_model(file_path: Union[str, Path]) -> Any:
     """

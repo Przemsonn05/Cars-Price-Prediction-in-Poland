@@ -1,14 +1,8 @@
-# src/preprocessing.py
-
 import pandas as pd
 import numpy as np
-
 from .utils import get_current_eur_pln_rate
 
-#: Mean EUR/PLN rate in 2021 (NBP archive).  Used as a safe historical
-#: fallback for the legacy Car_sale_ads.csv dataset.
 HISTORICAL_EUR_PLN_2021 = 4.565
-
 
 def _historical_eur_pln_rate(df: pd.DataFrame) -> float:
     """Pick the most appropriate EUR/PLN rate for *df*.
@@ -25,7 +19,6 @@ def _historical_eur_pln_rate(df: pd.DataFrame) -> float:
         return get_current_eur_pln_rate()
     except Exception:
         return HISTORICAL_EUR_PLN_2021
-
 
 def clean_car_data(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -50,11 +43,6 @@ def clean_car_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    # Convert EUR listings to PLN. The legacy CSV is from 2021, so we use a
-    # historical EUR/PLN rate (~4.55, year-2021 mean from NBP archives) rather
-    # than today's rate — using the current rate would distort historical
-    # prices. For the scraped balanced dataset this branch is a no-op
-    # because Otomoto publishes PLN prices.
     eur_rate = _historical_eur_pln_rate(df)
     if {'Price', 'Currency'}.issubset(df.columns):
         df['price_PLN'] = df.apply(
@@ -70,7 +58,6 @@ def clean_car_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop_duplicates(subset=cols_to_check, keep='first')
 
     df['First_owner'] = (df['First_owner'] == 'Yes').astype(int)
-    
     df['Origin_country'] = df['Origin_country'].fillna('unknown')
 
     cols_to_int = ['Doors_number', 'Mileage_km', 'Power_HP', 'Displacement_cm3']

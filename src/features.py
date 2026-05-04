@@ -1,5 +1,4 @@
-"""src/features.py — Feature engineering.
-
+"""
 Two APIs are exposed:
 
 1. **Legacy functions** ``engineer_base_features`` and
@@ -17,10 +16,8 @@ redefines them.
 """
 
 from __future__ import annotations
-
 from datetime import datetime
 from typing import Tuple
-
 import numpy as np
 import pandas as pd
 from category_encoders import TargetEncoder
@@ -35,7 +32,6 @@ from sklearn.preprocessing import (
     PowerTransformer,
     StandardScaler,
 )
-
 from .config import (
     BRAND_FREQUENCY_FALLBACK,
     IS_PREMIUM_BRANDS,
@@ -45,11 +41,6 @@ from .config import (
     get_performance_category,
     get_usage_category,
 )
-
-# ---------------------------------------------------------------------------
-# Stateless feature creation (pure function of a single row).
-# ---------------------------------------------------------------------------
-
 
 def engineer_base_features(df: pd.DataFrame) -> pd.DataFrame:
     """Create row-wise features that do not require fitting.
@@ -108,13 +99,6 @@ def engineer_base_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=cols_to_drop, errors="ignore")
     return df
 
-
-# ---------------------------------------------------------------------------
-# Legacy function — kept for notebook / existing main.py pipeline.
-# New code should use ``FeatureEngineeringTransformer`` instead.
-# ---------------------------------------------------------------------------
-
-
 def apply_advanced_transformations(
     X_train: pd.DataFrame,
     X_test: pd.DataFrame,
@@ -130,12 +114,6 @@ def apply_advanced_transformations(
     X_train_tf = transformer.fit_transform(X_train)
     X_test_tf = transformer.transform(X_test)
     return X_train_tf, X_test_tf
-
-
-# ---------------------------------------------------------------------------
-# sklearn-compatible transformer — picklable, self-contained.
-# ---------------------------------------------------------------------------
-
 
 class FeatureEngineeringTransformer(BaseEstimator, TransformerMixin):
     """End-to-end feature engineering as a single sklearn transformer.
@@ -174,8 +152,6 @@ class FeatureEngineeringTransformer(BaseEstimator, TransformerMixin):
 
     def __init__(self, run_base_features: bool = True):
         self.run_base_features = run_base_features
-
-    # -- sklearn API --------------------------------------------------------
 
     def fit(self, X: pd.DataFrame, y=None):
         X = X.copy()
@@ -228,12 +204,10 @@ class FeatureEngineeringTransformer(BaseEstimator, TransformerMixin):
         if self.run_base_features:
             X = engineer_base_features(X)
 
-        # -- Impute numeric cols --------------------------------------------
         for col, fill in self.numeric_fill_.items():
             if col in X.columns:
                 X[col] = X[col].fillna(fill)
 
-        # -- Recompute features that depend on imputed values ---------------
         if "Power_HP" in X.columns and "Displacement_cm3" in X.columns:
             displacement_safe = X["Displacement_cm3"].replace(0, 100)
             X["HP_per_liter"] = X["Power_HP"] / (displacement_safe / 1000)
@@ -247,17 +221,14 @@ class FeatureEngineeringTransformer(BaseEstimator, TransformerMixin):
                 (X["Power_HP"] > 500) & (X["Is_premium"] == 1)
             ).astype("Int64")
 
-        # -- Log transforms -------------------------------------------------
         for col in self._LOG_COLS:
             if col in X.columns:
                 X[f"{col}_log"] = np.log1p(X[col].clip(lower=0))
 
-        # -- Impute categorical cols ----------------------------------------
         for col, fill in self.categorical_fill_.items():
             if col in X.columns:
                 X[col] = X[col].fillna(fill)
 
-        # -- Polynomial features --------------------------------------------
         for col, new_name in (
             ("Vehicle_age", "Vehicle_age_squared"),
             ("Power_HP", "Power_HP_squared"),
@@ -266,7 +237,6 @@ class FeatureEngineeringTransformer(BaseEstimator, TransformerMixin):
             if col in X.columns:
                 X[new_name] = X[col].fillna(0) ** 2
 
-        # -- Interaction terms ----------------------------------------------
         if "Vehicle_age" in X.columns and "Mileage_km" in X.columns:
             X["Age_Mileage_interaction"] = (
                 X["Vehicle_age"].fillna(0) * X["Mileage_km"].fillna(0)
@@ -280,7 +250,6 @@ class FeatureEngineeringTransformer(BaseEstimator, TransformerMixin):
                 X["Mileage_per_year"].fillna(0) * X["Vehicle_age"].fillna(0)
             )
 
-        # -- Brand-level market features ------------------------------------
         if "Vehicle_brand" in X.columns:
             brand_lower = X["Vehicle_brand"].astype(str).str.lower().str.strip()
             X["Brand_tier"] = brand_lower.apply(get_brand_tier)
@@ -313,12 +282,6 @@ class FeatureEngineeringTransformer(BaseEstimator, TransformerMixin):
     def get_feature_names_out(self, input_features=None):
         return np.array(self.feature_names_out_ or [])
 
-
-# ---------------------------------------------------------------------------
-# Preprocessors (column-transformers) used by different models.
-# ---------------------------------------------------------------------------
-
-
 def get_preprocessor_tree() -> ColumnTransformer:
     """Preprocessor for tree-based models: median impute + ordinal encode."""
     num_pipeline = SimpleImputer(strategy="median")
@@ -331,7 +294,6 @@ def get_preprocessor_tree() -> ColumnTransformer:
         ("num", num_pipeline, make_column_selector(dtype_include="number")),
         ("cat", cat_pipeline, make_column_selector(dtype_include=["object", "category"])),
     ])
-
 
 def get_preprocessor_mastered(smoothing: int = 200) -> ColumnTransformer:
     """Preprocessor for linear models: yeo-johnson + poly + target encoding."""
@@ -351,7 +313,6 @@ def get_preprocessor_mastered(smoothing: int = 200) -> ColumnTransformer:
         ("cat_simple", OneHotEncoder(handle_unknown="ignore"), cat_cols_simple),
     ])
 
-
 def get_preprocessor_v2(smoothing: int = 300) -> ColumnTransformer:
     """Preprocessor for the tuned XGBoost with brand-level numeric features."""
     num_cols_v2 = [
@@ -369,3 +330,119 @@ def get_preprocessor_v2(smoothing: int = 300) -> ColumnTransformer:
         ("target", TargetEncoder(smoothing=smoothing), cat_cols_encode),
         ("cat_simple", OneHotEncoder(handle_unknown="ignore"), cat_cols_ohe),
     ])
+
+def filter_mass_market_cars(
+    df: pd.DataFrame,
+    error_df: pd.DataFrame | None = None,
+    exclude_ultra_luxury: bool = True,
+    min_brand_count: int = 30,
+    max_vehicle_age: int = 30,
+    additional_brands_to_exclude: list[str] | None = None,
+    error_threshold: float = 50.0,
+    brands_to_exclude: list[str] | None = None,
+) -> pd.DataFrame:
+    """Filter a DataFrame to retain only mass-market vehicles.
+
+    Filtering is applied in three configurable layers:
+
+    1. **Age cutoff** — removes vintage/collector cars when
+       ``Vehicle_age > max_vehicle_age``.
+    2. **Rule-based brand exclusion** — removes Ultra_Luxury tier brands
+       and/or brands with fewer than ``min_brand_count`` rows in *df*.
+       Pass ``brands_to_exclude`` to apply a pre-computed list without
+       re-deriving it (use this for the test set to avoid leakage).
+    3. **Data-driven exclusion** — if ``error_df`` is supplied it must
+       contain columns ``Vehicle_brand`` and ``mean_mape`` (MAPE in %).
+       Brands exceeding ``error_threshold`` are added to the exclusion set.
+
+    Parameters
+    ----------
+    df:
+        Input DataFrame.  Must contain ``Vehicle_brand`` and ``Vehicle_age``
+        columns (and optionally ``Brand_tier`` for the Ultra-Luxury check).
+    error_df:
+        Optional per-brand error summary from a previous error analysis.
+        Expected columns: ``Vehicle_brand`` (str), ``mean_mape`` (float, %).
+        Brands with ``mean_mape > error_threshold`` are excluded.
+    exclude_ultra_luxury:
+        Remove all brands classified as ``Ultra_Luxury`` by
+        :func:`src.config.get_brand_tier`.  Default ``True``.
+    min_brand_count:
+        Remove brands with fewer than this many rows in *df*.  Set to ``0``
+        to skip count-based filtering.  Default ``30``.
+    max_vehicle_age:
+        Remove vehicles with ``Vehicle_age`` strictly above this value.
+        Pass ``None`` to disable age filtering.  Default ``30``.
+    additional_brands_to_exclude:
+        Extra brand names (case-insensitive) to remove unconditionally.
+    error_threshold:
+        MAPE percentage (0–100 scale) above which a brand is excluded when
+        ``error_df`` is provided.  Default ``50.0``.
+    brands_to_exclude:
+        Pre-computed exclusion list (lower-case).  When supplied,
+        ``exclude_ultra_luxury`` and ``min_brand_count`` derivation steps
+        are **skipped**.  Use this when applying a training-set-derived
+        filter to the test set to avoid data leakage.
+
+    Returns
+    -------
+    pd.DataFrame
+        A copy of *df* with excluded rows removed.
+    """
+    excluded: set[str] = set()
+
+    if brands_to_exclude is not None:
+        excluded.update(b.strip().lower() for b in brands_to_exclude)
+    else:
+        if "Vehicle_brand" in df.columns:
+            brand_lower = df["Vehicle_brand"].astype(str).str.lower().str.strip()
+
+            if min_brand_count > 0:
+                counts = brand_lower.value_counts()
+                excluded.update(counts[counts < min_brand_count].index.tolist())
+
+            if exclude_ultra_luxury:
+                if "Brand_tier" in df.columns:
+                    ul_mask = df["Brand_tier"] == "Ultra_Luxury"
+                    ul_brands = brand_lower[ul_mask].unique()
+                else:
+                    ul_brands = brand_lower[
+                        brand_lower.apply(get_brand_tier) == "Ultra_Luxury"
+                    ].unique()
+                excluded.update(ul_brands)
+
+    if error_df is not None and "Vehicle_brand" in error_df.columns:
+        metric_col = (
+            "mean_mape"
+            if "mean_mape" in error_df.columns
+            else error_df.select_dtypes("number").columns[0]
+        )
+        high_err = (
+            error_df.loc[error_df[metric_col] > error_threshold, "Vehicle_brand"]
+            .astype(str)
+            .str.lower()
+            .str.strip()
+        )
+        excluded.update(high_err)
+
+    if additional_brands_to_exclude:
+        excluded.update(b.strip().lower() for b in additional_brands_to_exclude)
+
+    mask = pd.Series(True, index=df.index)
+
+    if "Vehicle_brand" in df.columns:
+        brand_lower = df["Vehicle_brand"].astype(str).str.lower().str.strip()
+        mask &= ~brand_lower.isin(excluded)
+
+    if max_vehicle_age is not None and "Vehicle_age" in df.columns:
+        mask &= df["Vehicle_age"] <= max_vehicle_age
+
+    df_filtered = df[mask].copy()
+    removed = len(df) - len(df_filtered)
+    print(
+        f"[filter_mass_market_cars] {len(df):,} -> {len(df_filtered):,} rows "
+        f"({removed:,} removed, {len(df_filtered) / max(len(df), 1) * 100:.1f}% retained)"
+    )
+    if excluded:
+        print(f"  Excluded brands ({len(excluded)}): {sorted(excluded)}")
+    return df_filtered

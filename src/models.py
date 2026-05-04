@@ -1,5 +1,4 @@
-"""src/models.py — Model training and optimization.
-
+"""
 Includes:
 * Ridge regression with GridSearchCV
 * Random Forest with RandomizedSearchCV
@@ -10,9 +9,7 @@ Includes:
 """
 
 from __future__ import annotations
-
 from typing import Dict
-
 import numpy as np
 import optuna
 import pandas as pd
@@ -23,7 +20,6 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import GridSearchCV, KFold, RandomizedSearchCV
 from sklearn.pipeline import Pipeline
-
 from .config import (
     RANDOM_STATE,
     TIER_WEIGHT_MAP,
@@ -32,11 +28,11 @@ from .config import (
 )
 from .features import (
     FeatureEngineeringTransformer,
+    filter_mass_market_cars,
     get_preprocessor_mastered,
     get_preprocessor_tree,
     get_preprocessor_v2,
 )
-
 
 def get_log_transformed_target(
     y_train: pd.Series, y_test: pd.Series,
@@ -47,16 +43,9 @@ def get_log_transformed_target(
         "y_test_log": np.log1p(y_test),
     }
 
-
 def inverse_log_transform(y_log: np.ndarray) -> np.ndarray:
     """Inverse of ``log1p`` — map log-scale predictions back to PLN."""
     return np.expm1(y_log)
-
-
-# ---------------------------------------------------------------------------
-# Ridge / Random Forest / XGBoost training functions.
-# ---------------------------------------------------------------------------
-
 
 def train_ridge_grid_search(
     X_train: pd.DataFrame,
@@ -204,12 +193,6 @@ def train_xgboost_optuna(
     pipeline.fit(X_train, y_train_log)
     return pipeline
 
-
-# ---------------------------------------------------------------------------
-# Sample weighting (brand-tier driven).
-# ---------------------------------------------------------------------------
-
-
 def calculate_sample_weights(X_train: pd.DataFrame) -> np.ndarray:
     """Assign higher weights to rare / luxury brand tiers."""
     brands = X_train["Vehicle_brand"].astype(str)
@@ -221,7 +204,6 @@ def calculate_sample_weights(X_train: pd.DataFrame) -> np.ndarray:
         n = (tiers == tier).sum()
         print_if_verbose(f"  {tier:<15}: weight={w:.1f}  n={n:,}")
     return weights
-
 
 def train_xgboost_weighted(
     X_train: pd.DataFrame,
@@ -241,7 +223,7 @@ def train_xgboost_weighted(
     print_if_verbose("=" * 80)
 
     weights = calculate_sample_weights(X_train)
-    preprocessor = get_preprocessor_v2(smoothing=300)
+    preprocessor = get_preprocessor_tree()
 
     def objective(trial):
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=RANDOM_STATE)
@@ -305,11 +287,82 @@ def train_xgboost_weighted(
     pipeline.fit(X_train, y_train_log, model__sample_weight=weights)
     return pipeline
 
+ADDITIONAL_NICHE_BRANDS_DEFAULT: list[str] = [
+    "sarini", "trabant", "wartburg", "syrena", "warszawa", "nysa",
+    "zeekr", "seres", "jac", "merkur", "gaz", "moskwicz", "polonez",
+    "aixam", "saab", "lancia", "daewoo", "zhidou", "cadillac", "maxus",
+]
 
-# ---------------------------------------------------------------------------
-# Production pipeline — bundles everything into a picklable artifact.
-# ---------------------------------------------------------------------------
+def train_mass_market_xgboost(
+    X_train: pd.DataFrame,
+    y_train_log: pd.Series,
+    n_trials: int = 50,
+    n_folds: int = 3,
+    additional_brands_to_exclude: list[str] | None = None,
+) -> tuple[Pipeline, list[str]]:
+    """Train XGBoost on mass-market filtered data.
 
+    Applies :func:`filter_mass_market_cars` to remove Ultra-Luxury brands,
+    vintage vehicles (> 30 years), and under-represented brands (< 30 rows)
+    from the training set.  The derived exclusion list is returned so the
+    caller can apply the **same** filter to the test set without data leakage.
+
+    Parameters
+    ----------
+    X_train:
+        Engineered training features (output of ``apply_advanced_transformations``).
+        Must contain ``Vehicle_brand``, ``Vehicle_age``, and ``Brand_tier``.
+    y_train_log:
+        Log-scale target (``np.log1p(price_PLN)``).
+    n_trials:
+        Optuna trials for hyperparameter search.  Default 50.
+    n_folds:
+        KFold splits inside the Optuna objective.  Default 3.
+    additional_brands_to_exclude:
+        Extra niche brand names (case-insensitive) excluded on top of the
+        automatic rules.  Defaults to :data:`ADDITIONAL_NICHE_BRANDS_DEFAULT`.
+
+    Returns
+    -------
+    pipeline : sklearn Pipeline
+        Fitted ``preprocessor → XGBRegressor`` pipeline.
+    excluded_brands : list[str]
+        Lower-case brand names removed from training.  Pass as
+        ``brands_to_exclude=excluded_brands`` to
+        :func:`filter_mass_market_cars` when filtering the test set.
+    """
+    print_if_verbose("\n" + "=" * 80)
+    print_if_verbose("TRAINING MASS-MARKET XGBOOST")
+    print_if_verbose("=" * 80)
+
+    extra = additional_brands_to_exclude
+    if extra is None:
+        extra = ADDITIONAL_NICHE_BRANDS_DEFAULT
+
+    X_filtered = filter_mass_market_cars(
+        X_train,
+        exclude_ultra_luxury=True,
+        min_brand_count=30,
+        max_vehicle_age=30,
+        additional_brands_to_exclude=extra,
+    )
+    y_filtered = y_train_log.loc[X_filtered.index]
+
+    retained = set(
+        X_filtered["Vehicle_brand"].astype(str).str.lower().str.strip().unique()
+    )
+    excluded_brands = [
+        b
+        for b in X_train["Vehicle_brand"].astype(str).str.lower().str.strip().unique()
+        if b not in retained
+    ]
+    print_if_verbose(
+        f"[OK] Training on {len(X_filtered):,} rows "
+        f"(excluded {len(excluded_brands)} brands)"
+    )
+
+    pipeline = train_xgboost_weighted(X_filtered, y_filtered, n_trials=n_trials, n_folds=n_folds)
+    return pipeline, excluded_brands
 
 def build_production_pipeline(xgb_params: dict | None = None) -> Pipeline:
     """Return an unfitted production pipeline:
@@ -336,7 +389,6 @@ def build_production_pipeline(xgb_params: dict | None = None) -> Pipeline:
         ("preprocessor", get_preprocessor_tree()),
         ("model", xgb.XGBRegressor(**xgb_params)),
     ])
-
 
 def get_predictions(
     model: Pipeline,

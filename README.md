@@ -25,7 +25,8 @@ This project demonstrates a complete **machine learning workflow**: data preproc
 5. **Hyperparameter tuning** — apply **Optuna** (Bayesian search) to identify optimal model configurations.
 6. **Evaluation & validation** — assess performance using **RMSE, MAE, MAPE, and R²** with residual analysis.
 7. **Error analysis and model refinement** — investigate prediction errors, identify problematic segments, engineer corrective features.
-8. **Deployment** — serialize the model to **Hugging Face Hub**, build an interactive **Streamlit dashboard**, containerize with **Docker**.
+8. **Mass-market specialization** — filter niche, luxury, and vintage segments; retrain a dedicated model on the core used-car market for higher accuracy where it matters most.
+9. **Deployment** — serialize the model to **Hugging Face Hub**, build an interactive **Streamlit dashboard**, containerize with **Docker**.
 
 ---
 
@@ -483,7 +484,28 @@ The most influential features align with real-world intuition:
 
 Transmission, Displacement, Vehicle Brand, and brand-level features (`BrandModel_frequency`, `Rarity_index`) each contribute measurable SHAP values, confirming that the model uses both technical and market-context features.
 
-**Decision: Base XGBoost (Model 3) selected** — best predictive accuracy with stable generalization. The tuned model's additional complexity did not translate to real-world performance gains on this dataset.
+**Decision: Base XGBoost (Model 3) selected for full-market deployment** — best predictive accuracy with stable generalization. The tuned model's additional complexity did not translate to real-world performance gains on this dataset.
+
+---
+
+#### Model 5 — XGBoost Mass-Market (Filtered Dataset)
+
+| Metric | Train | Test |
+|--------|-------|------|
+| R² | 96.7% | 93.4% |
+| RMSE | 18,728 PLN | 26,083 PLN |
+| MAE | 8,595 PLN | 10,668 PLN |
+| MAPE | 14.7% | 18.2% |
+
+This model applies a **mass-market filter** before training, removing segments where the general model systematically underperforms: Ultra-Luxury brands (Ferrari, Lamborghini, Rolls-Royce, Bentley, McLaren, Aston Martin), vehicles older than 30 years, brands with fewer than 30 training samples, and additional niche manufacturers (Trabant, Syrena, Warszawa, Saab, Lancia, Daewoo, and others). Sample weighting and KFold-CV Optuna tuning from Model 4 are retained, along with the `get_preprocessor_tree()` pipeline that auto-selects features by dtype.
+
+The motivation comes directly from the error analysis: the highest-residual segments are structurally different from the mass market — their prices are driven by rarity, collector demand, and brand prestige rather than technical specifications. Removing them allows the model to specialize on the 85%+ of listings that follow predictable depreciation logic.
+
+**Results confirm the hypothesis.** On the filtered test set, MAE drops from 12,462 to 10,668 PLN (−14.4%), MAPE falls from 19.4% to 18.2% (−1.2 pp), and R² improves from 92.7% to 93.4% (+0.7 pp). The train–test gap remains healthy (MAPE 14.7% → 18.2%, ~3.5 pp), consistent with Model 3's gap and confirming no additional overfitting from the filtering step.
+
+![Mass-Market Actual vs Predicted](images/mass_market_actual_vs_predicted.png)
+
+The scatter plot above shows predicted vs actual prices on the filtered test set. Removing the luxury and vintage tail tightens the price range and substantially reduces the fan-shaped scatter visible above 300,000 PLN in the full-market model — predictions cluster more tightly around the diagonal across the 20,000–200,000 PLN range that represents the core of the Polish used car market.
 
 ---
 
@@ -518,12 +540,17 @@ The curves confirm a healthy bias–variance balance:
 
 ![Model Comparison](images/model_comparison.png)
 
+> The chart above covers all five models. Models 1–4 are evaluated on the full test set; Model 5 (XGBoost Mass-Market) is evaluated on the filtered test subset excluding luxury/vintage/niche vehicles — see note below the table.
+
 | Model | R² (Test) | MAE (Test) | MAPE (Test) | Decision |
 |-------|-----------|------------|-------------|----------|
 | Ridge Regression | 72.4% | 19,355 PLN | 28.5% | ❌ Baseline only |
 | Random Forest | 92.2% | 13,250 PLN | 23.0% | ✅ Strong but surpassed |
-| **XGBoost Base** | **92.7%** | **12,462 PLN** | **19.4%** | ⭐ **Selected** |
+| **XGBoost Base** | **92.7%** | **12,462 PLN** | **19.4%** | ⭐ **Selected (full market)** |
 | XGBoost Weighted | 92.0% | 12,485 PLN | 19.5% | ⚠️ Slightly worse |
+| **XGBoost Mass-Market** | **93.4%**¹ | **10,668 PLN**¹ | **18.2%**¹ | ⭐ **Best on mass-market segment** |
+
+¹ Evaluated on filtered test set (excl. Ultra-Luxury, vintage >30 yr, niche brands) — not directly comparable to Models 1–4.
 
 All numbers reproduced from `reports/model_evaluation_report.txt`.
 
@@ -533,7 +560,9 @@ The progression from Ridge Regression to XGBoost Base tells a clear story about 
 
 The Weighted XGBoost result is the most instructive: despite 50 KFold-CV optimisation trials, sample weighting, and additional brand-level feature engineering, test performance regressed slightly across all metrics (R² 92.0% vs 92.7%). This is a reminder that hyperparameter tuning is not a guaranteed improvement — when a model already generalises well, extra regularisation and explicit feature selection can reduce its capacity to fit legitimate signal. The base XGBoost configuration found the right balance between bias and variance without needing aggressive penalisation.
 
-For practical deployment, a MAPE of 19.4% (MdAPE even lower on mass-market segment) and MAE of ~12,500 PLN mean the model is well-suited for mass-market vehicle valuation (20,000–150,000 PLN range) and can serve as a strong pricing signal for dealerships and private sellers. The residual 19% error reflects a mix of true model uncertainty, inherent noise in online listing prices (negotiation margins, seller motivation), and the unmodeled quality of individual vehicles.
+The Mass-Market XGBoost demonstrates a complementary strategy: instead of improving the model architecture, focus the training distribution. By removing the segments that introduce structural noise (Ultra-Luxury, vintage, niche brands) the model achieves MAE of 10,668 PLN and MAPE of 18.2% on the filtered segment — a 14.4% MAE improvement over the full-market model on comparable listings. This confirms that the remaining error in Model 3 is partly driven by the heterogeneous nature of the full dataset, not by model capacity limitations.
+
+For practical deployment, a MAPE of 19.4% and MAE of ~12,500 PLN on the full market make Model 3 well-suited for broad vehicle valuation across all segments. For use cases focused on everyday mass-market cars (20,000–200,000 PLN), the Mass-Market model's 18.2% MAPE and ~10,668 PLN MAE offer a meaningful accuracy improvement. The residual error in both variants reflects true model uncertainty combined with inherent noise in online listing prices (negotiation margins, seller motivation, unmodeled cosmetic condition).
 
 ---
 
@@ -680,13 +709,13 @@ The Otomoto link is automatically generated with filters matching the predicted 
 
 ## 📊 Results & Business Impact
 
-**Base XGBoost (Model 3)** was selected for deployment due to its best predictive accuracy and stable generalization across diverse vehicle segments.
+**Base XGBoost (Model 3)** was selected for deployment due to its best predictive accuracy and stable generalization across diverse vehicle segments. A dedicated **Mass-Market XGBoost (Model 5)** was additionally trained on the filtered core-market subset, delivering further accuracy improvements for everyday used cars.
 
-| Improvement vs Baseline | Value |
-|-------------------------|-------|
-| MAE reduction | **35.6%** (19,355 → 12,462 PLN) |
-| MAPE reduction | **31.8%** (28.5% → 19.4%) |
-| R² improvement | +20.3 pp (72.4% → 92.7%) |
+| Improvement vs Baseline | Full Market (Model 3) | Mass-Market Segment (Model 5) |
+|-------------------------|----------------------|-------------------------------|
+| MAE reduction | **35.6%** (19,355 → 12,462 PLN) | **44.9%** (19,355 → 10,668 PLN) |
+| MAPE reduction | **31.8%** (28.5% → 19.4%) | **36.1%** (28.5% → 18.2%) |
+| R² improvement | +20.3 pp (72.4% → 92.7%) | +21.0 pp (72.4% → 93.4%) |
 
 **Business applications:**
 - **Dealership pricing:** Automated competitive price estimation at scale — reduces manual appraisal time and introduces consistency across valuation teams

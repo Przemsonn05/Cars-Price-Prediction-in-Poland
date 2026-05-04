@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-# Make src/ importable when Streamlit runs this file.
 _PROJECT_ROOT = Path(__file__).parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
@@ -17,7 +16,6 @@ from urllib.parse import urlencode
 from datetime import datetime
 import folium
 from streamlit_folium import st_folium
-
 from src.config import (
     BRAND_FREQUENCY_FALLBACK,
     IS_PREMIUM_BRANDS,
@@ -27,7 +25,6 @@ from src.config import (
     get_performance_category,
     get_usage_category,
 )
-
 
 def _current_year() -> int:
     """Always read the current year at call time (avoids a stale module-level
@@ -41,9 +38,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ---------------------------------------------------------------------------
-# Global CSS
-# ---------------------------------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -314,15 +308,6 @@ div[data-testid="column"] .stButton > button:hover {
 </style>
 """, unsafe_allow_html=True)
 
-
-# ---------------------------------------------------------------------------
-# Helpers — brand classification, category binning, and link generation.
-#
-# Tier constants, frequency fallback, and binning helpers all come from
-# src.config (imported above) so there is a single source of truth shared
-# with training code in src/features.py and src/models.py.
-# ---------------------------------------------------------------------------
-
 def generate_otomoto_link(brand, model, year, price_min, price_max):
     """Build an Otomoto search URL for listings close to the predicted car."""
     base_url = "https://www.otomoto.pl/osobowe"
@@ -339,24 +324,12 @@ def generate_otomoto_link(brand, model, year, price_min, price_max):
         return f"{base_url}/{brand_clean}/{model_clean}?{urlencode(params)}"
     return f"{base_url}/{brand_clean}?{urlencode(params)}"
 
-
-# ---------------------------------------------------------------------------
-# Feature-engineering bridge.
-#
-# The production pipeline bundles a FeatureEngineeringTransformer, so all we
-# need to do here is assemble a DataFrame with the raw columns the
-# transformer expects.  The legacy pre-engineered 41-column layout is
-# reproduced only when the loaded model does NOT contain that transformer
-# (back-compat for the originally deployed HF artifact).
-# ---------------------------------------------------------------------------
-
 _RAW_INPUT_COLUMNS = [
     "Condition", "Vehicle_brand", "Vehicle_model",
     "Production_year", "Mileage_km", "Power_HP", "Displacement_cm3",
     "Fuel_type", "Drive", "Transmission", "Type", "Doors_number",
     "Colour", "Origin_country", "First_owner", "Offer_location", "Features",
 ]
-
 
 def prepare_raw_input(user_inputs: dict) -> pd.DataFrame:
     """Assemble a single-row DataFrame with raw columns for the production
@@ -366,7 +339,6 @@ def prepare_raw_input(user_inputs: dict) -> pd.DataFrame:
     df["Production_year"] = df["Production_year"].astype(int)
     df["Doors_number"] = df["Doors_number"].astype("Int64")
     return df
-
 
 def prepare_legacy_input(user_inputs: dict, brand_freq_map: dict | None = None) -> pd.DataFrame:
     """Build the legacy 41-column pre-engineered DataFrame.
@@ -379,7 +351,6 @@ def prepare_legacy_input(user_inputs: dict, brand_freq_map: dict | None = None) 
     the hand-curated map in ``src.config.BRAND_FREQUENCY_FALLBACK``.
     """
     brand_freq_map = brand_freq_map or BRAND_FREQUENCY_FALLBACK
-
     df = pd.DataFrame([user_inputs])
 
     brand_lower = df["Vehicle_brand"].iloc[0].strip().lower()
@@ -428,8 +399,6 @@ def prepare_legacy_input(user_inputs: dict, brand_freq_map: dict | None = None) 
     df["Mileage_per_year_Age"] = mileage_per_year * age
 
     brand_freq = int(brand_freq_map.get(brand_lower, 500))
-    # Brand-model frequency is unknown at serving time when not persisted —
-    # use a conservative fraction of brand frequency as an approximation.
     brandmodel_freq = max(brand_freq // 5, 10)
 
     max_freq = max(brand_freq_map.values()) if brand_freq_map else 22000
@@ -467,7 +436,6 @@ def prepare_legacy_input(user_inputs: dict, brand_freq_map: dict | None = None) 
             df[col] = 0
     return df[expected_columns]
 
-
 def pipeline_has_feature_engineer(pipeline) -> bool:
     """Return True if *pipeline* already bundles a FeatureEngineeringTransformer."""
     try:
@@ -475,11 +443,6 @@ def pipeline_has_feature_engineer(pipeline) -> bool:
         return "features" in steps and type(steps["features"]).__name__ == "FeatureEngineeringTransformer"
     except Exception:
         return False
-
-
-# ---------------------------------------------------------------------------
-# Model loading
-# ---------------------------------------------------------------------------
 
 @st.cache_resource(show_spinner="Loading price-prediction model...")
 def load_model():
@@ -502,7 +465,6 @@ def load_model():
         st.error(f"Model could not be loaded: {e}")
         return None
 
-
 def extract_pipeline(model_data):
     """Normalise the various artifact layouts to a single sklearn pipeline."""
     if model_data is None:
@@ -514,19 +476,6 @@ def extract_pipeline(model_data):
         )
         return pipeline, model_data
     return model_data, {}
-
-
-# ---------------------------------------------------------------------------
-# Regional-market data.
-#
-# Previously this returned np.random.randint(500, 5000) per city and
-# presented the result as "geographic distribution of 200 000+ listings".
-# That was a fabrication.  The new implementation computes real counts from
-# the training CSV (data/Car_sale_ads_balanced.csv) whenever it is present.
-# When the CSV is missing (e.g. on the Streamlit Cloud container that only
-# ships the app code), we fall back to a demo dataset that is clearly
-# labelled as such in the UI.
-# ---------------------------------------------------------------------------
 
 _CITY_COORDS: dict[str, tuple[float, float]] = {
     "warszawa": (52.2297, 21.0122), "krakow": (50.0647, 19.9450),
@@ -546,7 +495,6 @@ _CITY_COORDS: dict[str, tuple[float, float]] = {
     "tarnow": (50.0121, 20.9858), "chorzow": (50.2975, 18.9448),
 }
 
-
 def _extract_city(offer_location: str) -> str | None:
     """Grab the city portion from a Polish offer_location string.
 
@@ -565,7 +513,6 @@ def _extract_city(offer_location: str) -> str | None:
     for k, v in replacements.items():
         head = head.replace(k, v)
     return head or None
-
 
 @st.cache_data(show_spinner=False)
 def load_regional_data() -> tuple[dict[str, int], dict[str, tuple[float, float]], bool]:
@@ -596,16 +543,10 @@ def load_regional_data() -> tuple[dict[str, int], dict[str, tuple[float, float]]
             city_counts = {c.title(): matched[c] for c in matched}
             return city_counts, coords, True
 
-    # Demo fallback (flagged by the UI).
     rng = np.random.default_rng(42)
     demo = {city.title(): int(rng.integers(500, 5000)) for city in _CITY_COORDS}
     coords = {city.title(): coord for city, coord in _CITY_COORDS.items()}
     return demo, coords, False
-
-
-# ---------------------------------------------------------------------------
-# Load model
-# ---------------------------------------------------------------------------
 
 model_data = load_model()
 pipeline, model_meta = extract_pipeline(model_data)
@@ -613,29 +554,15 @@ if pipeline is None:
     st.error("Model cannot be loaded. Check your internet connection.")
     st.stop()
 
-#: True when the loaded artifact has FeatureEngineeringTransformer bundled
-#: (production build from main.py --mode production).
 _HAS_FEATURE_ENGINEER = pipeline_has_feature_engineer(pipeline)
-#: Brand-frequency map saved alongside the legacy model, if any.
 _ARTIFACT_BRAND_FREQ = model_meta.get("brand_freq_map")
-
-
-# ---------------------------------------------------------------------------
-# Navigation state
-# ---------------------------------------------------------------------------
 
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-
 def navigate_to(page: str) -> None:
     st.session_state.page = page
     st.rerun()
-
-
-# ---------------------------------------------------------------------------
-# Sidebar
-# ---------------------------------------------------------------------------
 
 with st.sidebar:
     st.markdown(f"""
@@ -682,11 +609,6 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-
-# ---------------------------------------------------------------------------
-# Helpers for charts
-# ---------------------------------------------------------------------------
-
 PLOT_BG = dict(
     plot_bgcolor="rgba(0,0,0,0)",
     paper_bgcolor="rgba(0,0,0,0)",
@@ -696,14 +618,11 @@ PLOT_BG = dict(
     margin=dict(t=48, b=32, l=16, r=16)
 )
 
-
 def _section(title: str) -> None:
     st.markdown(f"<div class='section-header'>{title}</div>", unsafe_allow_html=True)
 
-
 def _intro(text: str) -> None:
     st.markdown(f"<p class='chart-intro'>{text}</p>", unsafe_allow_html=True)
-
 
 def _insight(text: str) -> None:
     st.markdown(
@@ -711,16 +630,10 @@ def _insight(text: str) -> None:
         unsafe_allow_html=True
     )
 
-
 def _show_image(path: str) -> None:
     _, img_col, _ = st.columns([0.3, 3.4, 0.3])
     with img_col:
         st.image(path, use_container_width=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PAGE: Home
-# ═══════════════════════════════════════════════════════════════════════════
 
 def home_page() -> None:
     st.markdown(f"""
@@ -745,7 +658,6 @@ def home_page() -> None:
 
     st.markdown("<br><hr>", unsafe_allow_html=True)
 
-    # Feature cards
     c1, c2, c3 = st.columns(3)
     cards = [
         ("Instant Valuation",
@@ -774,7 +686,6 @@ def home_page() -> None:
 
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    # Model performance summary
     st.markdown(
         "<h2 style='text-align: center; margin-bottom: 24px;'>Model Performance</h2>",
         unsafe_allow_html=True
@@ -810,7 +721,6 @@ def home_page() -> None:
 
     st.markdown("<br><hr>", unsafe_allow_html=True)
 
-    # About project (expanded)
     st.markdown(
         "<h2 style='text-align: center; margin-bottom: 24px;'>About the Project</h2>",
         unsafe_allow_html=True
@@ -867,7 +777,6 @@ def home_page() -> None:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Tech stack cards
     t1, t2, t3 = st.columns(3)
     tech_cards = [
         ("Machine Learning",
@@ -897,11 +806,6 @@ def home_page() -> None:
         limited training data for those segments.</p>
     </div>
     """, unsafe_allow_html=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PAGE: Price Prediction
-# ═══════════════════════════════════════════════════════════════════════════
 
 def predict_page() -> None:
     st.markdown("""
@@ -943,13 +847,13 @@ def predict_page() -> None:
         "Denmark", "Norway", "Finland", "Portugal", "Greece", "Thailand", "Vietnam"
     ]
 
-    fuel_list     = ["Gasoline", "Gasoline + LPG", "Diesel", "Hybrid",
+    fuel_list = ["Gasoline", "Gasoline + LPG", "Diesel", "Hybrid",
                      "Gasoline + CNG", "Hydrogen", "Electric"]
-    body_list     = ["small_cars", "coupe", "city_cars", "convertible",
+    body_list = ["small_cars", "coupe", "city_cars", "convertible",
                      "compact", "SUV", "sedan", "station_wagon", "minivan"]
-    color_list    = ["Black", "White", "Grey", "Silver", "Blue",
+    color_list = ["Black", "White", "Grey", "Silver", "Blue",
                      "Red", "Yellow", "Green", "Other"]
-    trans_list    = ["Manual", "Automatic"]
+    trans_list = ["Manual", "Automatic"]
 
     with st.form("prediction_form"):
         st.markdown(
@@ -958,13 +862,13 @@ def predict_page() -> None:
         )
         col1, col2 = st.columns(2, gap="large")
         with col1:
-            brand_choice  = st.selectbox("Brand *", ["-- select --"] + brand_list)
+            brand_choice = st.selectbox("Brand *", ["-- select --"] + brand_list)
             vehicle_model = st.text_input("Model", placeholder="e.g. Golf, Astra, Corolla...")
-            condition     = st.selectbox("Condition *", ["-- select --", "Used", "New"])
+            condition = st.selectbox("Condition *", ["-- select --", "Used", "New"])
         with col2:
             production_year = st.slider("Production Year *", 1915, _current_year(), 2015)
-            colour          = st.selectbox("Colour", ["-- select --"] + color_list)
-            origin_country  = st.selectbox("Country of Origin", ["-- select --"] + country_list)
+            colour = st.selectbox("Colour", ["-- select --"] + color_list)
+            origin_country = st.selectbox("Country of Origin", ["-- select --"] + country_list)
 
         st.markdown(
             "<div class='form-section-title'>Engine & Mechanics</div>",
@@ -972,14 +876,14 @@ def predict_page() -> None:
         )
         c1, c2, c3 = st.columns(3, gap="medium")
         with c1:
-            mileage_km       = st.slider("Mileage (km) *", 0, 1_000_000, 100_000, step=1000)
-            fuel_type        = st.selectbox("Fuel Type *", ["-- select --"] + fuel_list)
+            mileage_km = st.slider("Mileage (km) *", 0, 1_000_000, 100_000, step=1000)
+            fuel_type = st.selectbox("Fuel Type *", ["-- select --"] + fuel_list)
         with c2:
-            power_HP         = st.slider("Power (HP) *", 10, 1_500, 150)
-            transmission     = st.selectbox("Transmission *", ["-- select --"] + trans_list)
+            power_HP  = st.slider("Power (HP) *", 10, 1_500, 150)
+            transmission = st.selectbox("Transmission *", ["-- select --"] + trans_list)
         with c3:
             displacement_cm3 = st.slider("Displacement (cm3) *", 0, 8_000, 2_000, step=50)
-            car_type         = st.selectbox("Body Type *", ["-- select --"] + body_list)
+            car_type = st.selectbox("Body Type *", ["-- select --"] + body_list)
 
         st.markdown(
             "<div class='form-section-title'>Additional Information</div>",
@@ -987,9 +891,9 @@ def predict_page() -> None:
         )
         a1, a2, a3 = st.columns(3, gap="medium")
         with a1:
-            first_owner    = st.selectbox("First Owner", ["No", "Yes"])
+            first_owner = st.selectbox("First Owner", ["No", "Yes"])
         with a2:
-            doors_number   = st.selectbox("Doors", [3, 4, 5, 2], index=1)
+            doors_number = st.selectbox("Doors", [3, 4, 5, 2], index=1)
         with a3:
             offer_location = st.text_input("Location", placeholder="e.g. Warszawa, Krakow...")
 
@@ -1018,23 +922,23 @@ def predict_page() -> None:
             with st.spinner("Calculating valuation..."):
                 try:
                     user_inputs = {
-                        "Condition":        condition,
-                        "Vehicle_brand":    brand_choice,
-                        "Vehicle_model":    vehicle_model or "Unknown",
-                        "Production_year":  production_year,
-                        "Mileage_km":       mileage_km,
-                        "Power_HP":         power_HP,
+                        "Condition": condition,
+                        "Vehicle_brand":  brand_choice,
+                        "Vehicle_model":  vehicle_model or "Unknown",
+                        "Production_year": production_year,
+                        "Mileage_km": mileage_km,
+                        "Power_HP": power_HP,
                         "Displacement_cm3": displacement_cm3,
-                        "Fuel_type":        fuel_type,
-                        "Drive":            "Front wheels",
-                        "Transmission":     transmission,
-                        "Type":             car_type,
-                        "Doors_number":     int(doors_number),
-                        "Colour":           colour if colour != "-- select --" else "Other",
-                        "Origin_country":   origin_country if origin_country != "-- select --" else "unknown",
-                        "First_owner":      1 if first_owner == "Yes" else 0,
-                        "Offer_location":   offer_location or "Unknown",
-                        "Features":         features_input or "",
+                        "Fuel_type": fuel_type,
+                        "Drive": "Front wheels",
+                        "Transmission": transmission,
+                        "Type": car_type,
+                        "Doors_number": int(doors_number),
+                        "Colour": colour if colour != "-- select --" else "Other",
+                        "Origin_country": origin_country if origin_country != "-- select --" else "unknown",
+                        "First_owner": 1 if first_owner == "Yes" else 0,
+                        "Offer_location": offer_location or "Unknown",
+                        "Features": features_input or "",
                     }
 
                     if _HAS_FEATURE_ENGINEER:
@@ -1044,7 +948,7 @@ def predict_page() -> None:
                     y_log = pipeline.predict(final_df)[0]
                     price = float(np.expm1(y_log))
 
-                    price_low  = price * 0.85
+                    price_low = price * 0.85
                     price_high = price * 1.15
 
                     st.markdown(f"""
@@ -1060,13 +964,13 @@ def predict_page() -> None:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    vehicle_age      = _current_year() - production_year
+                    vehicle_age = _current_year() - production_year
                     mileage_per_year = mileage_km / max(vehicle_age, 1)
-                    hp_per_liter     = power_HP / max(displacement_cm3 / 1000, 0.1)
-                    brand_tier       = get_brand_tier(brand_choice)
+                    hp_per_liter = power_HP / max(displacement_cm3 / 1000, 0.1)
+                    brand_tier = get_brand_tier(brand_choice)
 
                     d1, d2, d3, d4 = st.columns(4)
-                    with d1: st.metric("Vehicle Age",    f"{vehicle_age} years")
+                    with d1: st.metric("Vehicle Age", f"{vehicle_age} years")
                     with d2: st.metric("Annual Mileage", f"{mileage_per_year:,.0f} km")
                     with d3: st.metric("Specific Power", f"{hp_per_liter:.1f} HP/L")
                     with d4: st.metric("Market Segment", brand_tier)
@@ -1100,11 +1004,6 @@ def predict_page() -> None:
                     st.error(f"Valuation error: {e}")
                     st.info("Please verify your inputs and try again. "
                             "If the problem persists, the model service may be temporarily unavailable.")
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PAGE: Regional Market
-# ═══════════════════════════════════════════════════════════════════════════
 
 def regional_page() -> None:
     st.markdown("""
@@ -1204,11 +1103,6 @@ def regional_page() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PAGE: Visualizations
-# ═══════════════════════════════════════════════════════════════════════════
-
 def visualizations_page() -> None:
     st.markdown("""
     <h1 style='margin-bottom: 6px;'>Data Visualizations</h1>
@@ -1225,12 +1119,8 @@ def visualizations_page() -> None:
         "EDA Insights", "Model Analysis", "Business Insights"
     ])
 
-    # ==================================================================
-    # TAB 1: EDA Insights
-    # ==================================================================
     with viz_tab:
 
-        # -- 1. Price Distribution ------------------------------------
         _section("Price Distribution")
         _intro(
             "Understanding how prices are distributed is the first step in any "
@@ -1255,7 +1145,6 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # -- 2. Depreciation -----------------------------------------
         _section("Value Depreciation Over Time")
         _intro(
             "Depreciation is the single strongest price driver in the used-car market. "
@@ -1278,7 +1167,6 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # -- 3. Mileage vs Price by Age -------------------------------
         _section("Mileage vs Price by Vehicle Age")
         _intro(
             "Mileage and age interact in complex ways. A low-mileage old car is not the "
@@ -1302,7 +1190,6 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # -- 4. Top 20 Brands ----------------------------------------
         _section("Median Price - Top 20 Brands")
         _intro(
             "Brand positioning is a key factor in used-car pricing. This chart ranks "
@@ -1325,7 +1212,6 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # -- 5. Fuel Type Trends -------------------------------------
         _section("Price Trends by Fuel Type")
         _intro(
             "Different fuel types follow distinct market trajectories. This chart "
@@ -1348,12 +1234,8 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-    # ==================================================================
-    # TAB 2: Model Analysis
-    # ==================================================================
     with model_tab:
 
-        # -- SHAP Feature Importance ----------------------------------
         _section("SHAP Feature Importance")
         _intro(
             "SHAP (SHapley Additive exPlanations) values measure each feature's "
@@ -1378,7 +1260,6 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # -- XGBoost Feature Importance -------------------------------
         _section("XGBoost Split-Based Feature Importance")
         _intro(
             "Split-based importance measures how frequently each feature is used "
@@ -1401,7 +1282,6 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # -- Error Analysis -------------------------------------------
         _section("Error Analysis by Vehicle Age")
         _intro(
             "Analysing prediction errors by production year reveals where the "
@@ -1424,7 +1304,6 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # -- Learning Curves ------------------------------------------
         _section("Learning Curves")
         _intro(
             "Learning curves track model performance as training data increases. "
@@ -1446,7 +1325,6 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # -- Model Comparison -----------------------------------------
         _section("Model Comparison")
         _intro(
             "Four architectures were systematically compared using identical "
@@ -1468,9 +1346,6 @@ def visualizations_page() -> None:
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
-    # ==================================================================
-    # TAB 3: Business Insights
-    # ==================================================================
     with biz_tab:
 
         st.markdown("""
@@ -1484,7 +1359,6 @@ def visualizations_page() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Insight 1: Depreciation timing
         st.markdown("""
         <div class='biz-card'>
             <h4>1. The First 3 Years Are the Most Expensive</h4>
@@ -1501,7 +1375,6 @@ def visualizations_page() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Insight 2: Premium brand premium
         st.markdown("""
         <div class='biz-card'>
             <h4>2. The German Premium Tax Is Real - and Quantifiable</h4>
@@ -1518,7 +1391,6 @@ def visualizations_page() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Insight 3: Transmission premium
         st.markdown("""
         <div class='biz-card'>
             <h4>3. Automatic Transmission Commands a Consistent Premium</h4>
@@ -1534,7 +1406,6 @@ def visualizations_page() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Insight 4: Electric vehicles
         st.markdown("""
         <div class='biz-card'>
             <h4>4. Electric Vehicles Hold Value Differently</h4>
@@ -1550,7 +1421,6 @@ def visualizations_page() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Insight 5: Geographic pricing
         st.markdown("""
         <div class='biz-card'>
             <h4>5. Location Matters More Than Most Sellers Realise</h4>
@@ -1567,7 +1437,6 @@ def visualizations_page() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Insight 6: Mileage threshold
         st.markdown("""
         <div class='biz-card'>
             <h4>6. The 100 000 km Psychological Barrier</h4>
@@ -1583,7 +1452,6 @@ def visualizations_page() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Insight 7: Equipment value
         st.markdown("""
         <div class='biz-card'>
             <h4>7. Equipment Lists Add Measurable Value</h4>
@@ -1598,7 +1466,6 @@ def visualizations_page() -> None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Insight 8: Model accuracy scope
         st.markdown("""
         <div class='biz-card'>
             <h4>8. When to Trust (and Distrust) the Model</h4>
@@ -1614,11 +1481,6 @@ def visualizations_page() -> None:
             </p>
         </div>
         """, unsafe_allow_html=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# PAGE: About Model
-# ═══════════════════════════════════════════════════════════════════════════
 
 def info_page() -> None:
     st.markdown("""
@@ -1732,14 +1594,9 @@ Transmission, Body type, Doors, Colour, Location, Condition, Country of origin
 - **Visualisations:** Plotly, Folium, Matplotlib / Seaborn
 """)
 
-
-# ---------------------------------------------------------------------------
-# Router
-# ---------------------------------------------------------------------------
-
 page = st.session_state.page
-if   page == "home":           home_page()
-elif page == "predict":        predict_page()
-elif page == "regional":       regional_page()
+if   page == "home": home_page()
+elif page == "predict": predict_page()
+elif page == "regional": regional_page()
 elif page == "visualizations": visualizations_page()
-elif page == "info":           info_page()
+elif page == "info": info_page()

@@ -1,5 +1,3 @@
-# src/evaluation.py
-
 """
 Model evaluation and visualization module.
 
@@ -53,10 +51,10 @@ def calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float
     abs_pct_err = np.abs(y_true_arr - y_pred_arr) / np.maximum(np.abs(y_true_arr), eps)
 
     return {
-        'R2':    r2_score(y_true_arr, y_pred_arr),
-        'RMSE':  np.sqrt(mean_squared_error(y_true_arr, y_pred_arr)),
-        'MAE':   mean_absolute_error(y_true_arr, y_pred_arr),
-        'MAPE':  mean_absolute_percentage_error(y_true_arr, y_pred_arr),
+        'R2': r2_score(y_true_arr, y_pred_arr),
+        'RMSE': np.sqrt(mean_squared_error(y_true_arr, y_pred_arr)),
+        'MAE': mean_absolute_error(y_true_arr, y_pred_arr),
+        'MAPE': mean_absolute_percentage_error(y_true_arr, y_pred_arr),
         'MdAPE': float(np.median(abs_pct_err)),
     }
 
@@ -122,7 +120,6 @@ def cross_validate_model(
         arr = np.asarray(values, dtype=float)
         summary[f"{metric}_mean"] = float(arr.mean())
         summary[f"{metric}_std"] = float(arr.std(ddof=1) if len(arr) > 1 else 0.0)
-        # Approximate 95% CI (Gaussian) for the fold-mean statistic.
         summary[f"{metric}_ci95"] = 1.96 * summary[f"{metric}_std"] / np.sqrt(max(len(arr), 1))
 
     print_if_verbose(
@@ -136,22 +133,21 @@ def format_cv_summary(summary: Dict[str, float]) -> str:
     """Pretty-print a ``cross_validate_model`` summary for the report."""
     lines = ["Cross-validated (5-fold) test metrics — mean ± 95% CI:"]
     lines.append(
-        f"  R^2   : {summary['R2_mean']:.4f} ± {summary['R2_ci95']:.4f}"
+        f"R^2 : {summary['R2_mean']:.4f} ± {summary['R2_ci95']:.4f}"
     )
     lines.append(
-        f"  RMSE  : {summary['RMSE_mean']:,.0f} ± {summary['RMSE_ci95']:,.0f} PLN"
+        f"RMSE : {summary['RMSE_mean']:,.0f} ± {summary['RMSE_ci95']:,.0f} PLN"
     )
     lines.append(
-        f"  MAE   : {summary['MAE_mean']:,.0f} ± {summary['MAE_ci95']:,.0f} PLN"
+        f"MAE : {summary['MAE_mean']:,.0f} ± {summary['MAE_ci95']:,.0f} PLN"
     )
     lines.append(
-        f"  MAPE  : {summary['MAPE_mean']*100:.2f}% ± {summary['MAPE_ci95']*100:.2f} pp"
+        f"MAPE : {summary['MAPE_mean']*100:.2f}% ± {summary['MAPE_ci95']*100:.2f} pp"
     )
     lines.append(
-        f"  MdAPE : {summary['MdAPE_mean']*100:.2f}% ± {summary['MdAPE_ci95']*100:.2f} pp"
+        f"MdAPE : {summary['MdAPE_mean']*100:.2f}% ± {summary['MdAPE_ci95']*100:.2f} pp"
     )
     return "\n".join(lines)
-
 
 def create_metrics_table(
     y_train: np.ndarray,
@@ -258,7 +254,6 @@ def plot_regression_diagnostics(
         print_if_verbose(f"[OK] Saved plot: {save_path}")
     
     return fig
-
 
 def plot_residuals_vs_age(
     X_test: pd.DataFrame,
@@ -494,7 +489,6 @@ def plot_tree_feature_importance(
     )
     importance_df = importance_df.sort_values('Importance_pct', ascending=True)
     
-    # Plot
     fig, ax = plt.subplots(figsize=(12, 8))
     
     sns.barplot(

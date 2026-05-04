@@ -7,24 +7,15 @@ eliminates the drift that previously existed between the three modules
 """
 
 from __future__ import annotations
+import pandas as pd
 
 RANDOM_STATE: int = 42
 VERBOSE: bool = True
-
 
 def print_if_verbose(msg: str) -> None:
     """Print ``msg`` to stdout iff the module-level VERBOSE flag is True."""
     if VERBOSE:
         print(msg)
-
-
-# ---------------------------------------------------------------------------
-# Brand-tier membership.
-#
-# These five sets partition the set of recognised car brands.  Every brand
-# not in any of the four named sets is classified as ``Niche``.  Lower-case,
-# canonical spelling only.
-# ---------------------------------------------------------------------------
 
 ULTRA_LUXURY_BRANDS: frozenset[str] = frozenset({
     "ferrari", "lamborghini", "rolls-royce", "bentley", "mclaren",
@@ -50,8 +41,6 @@ MASS_MARKET_BRANDS: frozenset[str] = frozenset({
     "lancia", "daewoo", "lada",
 })
 
-#: Union of all brands considered "premium or above" for the
-#: ``Is_premium`` binary flag.  Must stay consistent with features.py.
 IS_PREMIUM_BRANDS: frozenset[str] = (
     ULTRA_LUXURY_BRANDS | LUXURY_BRANDS | PREMIUM_BRANDS
 )
@@ -74,15 +63,6 @@ def get_brand_tier(brand: str | None) -> str:
         return "Mass_Market"
     return "Niche"
 
-
-# ---------------------------------------------------------------------------
-# Fallback brand-frequency map.
-#
-# Used ONLY when a fitted ``BrandFeatureTransformer`` is not available
-# (e.g. the legacy deployed model).  New training runs build the map from
-# actual training-set value counts — see src/features.py.
-# ---------------------------------------------------------------------------
-
 BRAND_FREQUENCY_FALLBACK: dict[str, int] = {
     "volkswagen": 22000, "toyota": 15000, "audi": 14000, "bmw": 13500,
     "mercedes-benz": 13000, "opel": 11000, "ford": 10500, "kia": 10000,
@@ -99,11 +79,6 @@ BRAND_FREQUENCY_FALLBACK: dict[str, int] = {
     "warszawa": 60, "wartburg": 70, "gaz": 55, "moskwicz": 65,
 }
 
-
-# ---------------------------------------------------------------------------
-# Categorical-binning helpers.
-# ---------------------------------------------------------------------------
-
 def get_age_category(age: float | int | None) -> str:
     """Bin vehicle age into ``New`` / ``Recent`` / ``Used`` / ``Old``."""
     try:
@@ -118,10 +93,8 @@ def get_age_category(age: float | int | None) -> str:
         return "Used"
     return "Old"
 
-
 def get_usage_category(mileage_per_year: float | None) -> str:
     """Bin annual mileage into ``Low`` / ``Average`` / ``High`` / ``Very_High``."""
-    import pandas as pd
     if mileage_per_year is None or pd.isna(mileage_per_year):
         return "Unknown"
     if mileage_per_year < 10_000:
@@ -132,11 +105,9 @@ def get_usage_category(mileage_per_year: float | None) -> str:
         return "High"
     return "Very_High"
 
-
 def get_performance_category(hp_per_liter: float | None) -> str:
     """Bin specific-power into ``Economy`` / ``Standard`` / ``Performance`` /
     ``High_Performance``."""
-    import pandas as pd
     if hp_per_liter is None or pd.isna(hp_per_liter):
         return "Unknown"
     if hp_per_liter < 60:
@@ -146,7 +117,6 @@ def get_performance_category(hp_per_liter: float | None) -> str:
     if hp_per_liter < 150:
         return "Performance"
     return "High_Performance"
-
 
 def get_brand_popularity(brand_frequency: int) -> str:
     """Bin brand frequency into ``Ultra_Rare`` … ``Popular``."""
@@ -160,15 +130,10 @@ def get_brand_popularity(brand_frequency: int) -> str:
         return "Common"
     return "Popular"
 
-
-# ---------------------------------------------------------------------------
-# Sample-weighting schedule (used by train_xgboost_weighted).
-# ---------------------------------------------------------------------------
-
 TIER_WEIGHT_MAP: dict[str, float] = {
     "Ultra_Luxury": 4.0,
-    "Luxury":       3.0,
-    "Niche":        3.5,
-    "Premium":      1.5,
-    "Mass_Market":  1.0,
+    "Luxury": 3.0,
+    "Niche": 3.5,
+    "Premium": 1.5,
+    "Mass_Market": 1.0,
 }

@@ -44,7 +44,6 @@ from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urljoin
-
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -57,13 +56,9 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
 OTOMOTO_BASE = "https://www.otomoto.pl"
 SEARCH_URL = f"{OTOMOTO_BASE}/osobowe"
-PAGE_SIZE = 32  # Otomoto returns 32 listings per page
+PAGE_SIZE = 32
 
 _DEFAULT_HEADERS = {
     "User-Agent": (
@@ -78,7 +73,6 @@ _DEFAULT_HEADERS = {
     "DNT": "1",
 }
 
-# Raw field names produced by the scraper (before normalization to schema)
 RAW_COLUMNS = [
     "offer_id",
     "offer_url",
@@ -108,11 +102,6 @@ RAW_COLUMNS = [
     "created_at",
 ]
 
-
-# ---------------------------------------------------------------------------
-# HTTP session with retry
-# ---------------------------------------------------------------------------
-
 def _build_session(retries: int = 3, backoff: float = 1.0) -> requests.Session:
     session = requests.Session()
     session.headers.update(_DEFAULT_HEADERS)
@@ -127,11 +116,6 @@ def _build_session(retries: int = 3, backoff: float = 1.0) -> requests.Session:
     session.mount("http://", adapter)
     return session
 
-
-# ---------------------------------------------------------------------------
-# Parsing helpers
-# ---------------------------------------------------------------------------
-
 def _extract_next_data(html: str) -> Optional[dict]:
     """Extract and parse the __NEXT_DATA__ JSON from an Otomoto HTML page."""
     soup = BeautifulSoup(html, "lxml")
@@ -142,7 +126,6 @@ def _extract_next_data(html: str) -> Optional[dict]:
         return json.loads(tag.string)
     except json.JSONDecodeError:
         return None
-
 
 def _get_search_edges(next_data: dict) -> list[dict]:
     """Return the list of listing edges from the search page __NEXT_DATA__."""
@@ -157,11 +140,9 @@ def _get_search_edges(next_data: dict) -> list[dict]:
         pass
     return []
 
-
 def _params_to_dict(parameters: list[dict]) -> dict[str, str]:
     """Convert a list of {key, displayValue} parameter dicts to a flat map."""
     return {p["key"]: p.get("displayValue", "") for p in parameters if "key" in p}
-
 
 def _parse_price(price_node: Optional[dict]) -> tuple[str, str]:
     """Return (amount_str, currency) from a price node."""
@@ -172,7 +153,6 @@ def _parse_price(price_node: Optional[dict]) -> tuple[str, str]:
     currency = amount.get("currencyCode", price_node.get("currency", "PLN"))
     return (str(value), str(currency))
 
-
 def _parse_location(location_node: Optional[dict]) -> tuple[str, str]:
     """Return (city, region) from a location node."""
     if not location_node:
@@ -180,7 +160,6 @@ def _parse_location(location_node: Optional[dict]) -> tuple[str, str]:
     city = (location_node.get("city") or {}).get("name", "")
     region = (location_node.get("region") or {}).get("name", "")
     return (city, region)
-
 
 def _parse_listing_node(node: dict) -> dict:
     """Parse a single listing node from search results into a raw record dict."""
@@ -205,7 +184,7 @@ def _parse_listing_node(node: dict) -> dict:
         "engine_power_raw": params.get("engine_power", ""),
         "fuel_type_raw": params.get("fuel_type", ""),
         "gearbox_raw": params.get("gearbox", ""),
-        "transmission_raw": params.get("transmission", ""),   # drive type
+        "transmission_raw": params.get("transmission", ""),
         "body_type_raw": params.get("body_type", ""),
         "door_count_raw": params.get("door_count", ""),
         "colour_raw": params.get("color", ""),
@@ -246,11 +225,6 @@ def _url_to_id(url: str) -> str:
     """Generate a stable ID from a URL when numeric ID is unavailable."""
     return hashlib.md5(url.encode()).hexdigest()[:16]
 
-
-# ---------------------------------------------------------------------------
-# Detail page fetch (optional, for complete schema coverage)
-# ---------------------------------------------------------------------------
-
 def _fetch_detail(url: str, session: requests.Session) -> dict:
     """
     Fetch individual listing page and extract all parametersDict fields.
@@ -273,7 +247,6 @@ def _fetch_detail(url: str, session: requests.Session) -> dict:
             vals = entry.get("values", [])
             return vals[0].get("label", "") if vals else ""
 
-        # Equipment – flatten all equipment group values
         equipment_labels = []
         for group in advert.get("equipment", []):
             for item in group.get("values", []):
@@ -282,14 +255,13 @@ def _fetch_detail(url: str, session: requests.Session) -> dict:
                     equipment_labels.append(label)
         features_raw = ", ".join(equipment_labels)
 
-        # Location from individual page
         loc = advert.get("location") or {}
         city = (loc.get("city") or {}).get("name", "")
         region = (loc.get("region") or {}).get("name", "")
 
         return {
             "generation": _first_label("generation"),
-            "transmission_raw": _first_label("transmission"),  # drive type
+            "transmission_raw": _first_label("transmission"),
             "body_type_raw": _first_label("body_type"),
             "door_count_raw": _first_label("door_count"),
             "colour_raw": _first_label("color"),
@@ -303,11 +275,6 @@ def _fetch_detail(url: str, session: requests.Session) -> dict:
     except Exception as exc:
         logger.debug("Detail fetch failed for %s: %s", url, exc)
         return {}
-
-
-# ---------------------------------------------------------------------------
-# Core fetch functions
-# ---------------------------------------------------------------------------
 
 def _fetch_search_page(
     page: int,
@@ -406,7 +373,6 @@ def fetch_data(
                 if url:
                     time.sleep(random.uniform(*detail_delay))
                     extra = _fetch_detail(url, session)
-                    # Overlay non-null detail fields on search-result record
                     for k, v in extra.items():
                         if v is not None:
                             rec[k] = v
@@ -418,12 +384,10 @@ def fetch_data(
         return pd.DataFrame(columns=RAW_COLUMNS)
 
     df = pd.DataFrame(all_records)
-    # Ensure all expected columns exist
     for col in RAW_COLUMNS:
         if col not in df.columns:
             df[col] = ""
     return df[RAW_COLUMNS]
-
 
 def fetch_incremental(
     data_path: str | Path,
@@ -459,7 +423,7 @@ def fetch_incremental(
     pd.DataFrame
         The new (deduplicated) rows that were appended to ``data_path``.
     """
-    from src.data_cleaning import normalize_columns, clean_data  # local import avoids circular
+    from src.data_cleaning import normalize_columns, clean_data
 
     data_path = Path(data_path)
     existing_ids: set[str] = set()
@@ -481,7 +445,6 @@ def fetch_incremental(
         logger.info("No new data fetched")
         return df_raw
 
-    # Deduplicate
     if existing_ids:
         before = len(df_raw)
         df_raw = df_raw[~df_raw["offer_id"].astype(str).isin(existing_ids)]
@@ -491,21 +454,14 @@ def fetch_incremental(
         logger.info("All fetched listings already in dataset — nothing to append")
         return df_raw
 
-    # Normalize and clean to match schema
     df_schema = clean_data(df_raw)
 
-    # Append to existing file
     data_path.parent.mkdir(parents=True, exist_ok=True)
     write_header = not data_path.exists()
     df_schema.to_csv(data_path, mode="a", header=write_header, index=False)
     logger.info("Appended %d new rows to %s", len(df_schema), data_path)
 
     return df_schema
-
-
-# ---------------------------------------------------------------------------
-# Mock data generator
-# ---------------------------------------------------------------------------
 
 def _generate_mock_data(n_rows: int = 200, seed: int = 42) -> pd.DataFrame:
     """
@@ -583,31 +539,7 @@ def _generate_mock_data(n_rows: int = 200, seed: int = 42) -> pd.DataFrame:
 
     return pd.DataFrame(rows, columns=RAW_COLUMNS)
 
-
-# ---------------------------------------------------------------------------
-# Stratified / balanced collection
-# ---------------------------------------------------------------------------
-
-#: Configuration for stratified dataset collection.
-#:
-#: Each entry defines one fetch segment:
-#:   category      – label used by apply_stratified_sampling() in data_cleaning
-#:   filter_key    – "make" (brand), "fuel_type", or "none" (no filter = all brands)
-#:   filter_value  – Otomoto-compatible filter value (lowercase); ignored when filter_key="none"
-#:   target_share  – fraction of ``target_rows`` allocated to this segment
-#:   max_pages     – hard cap on pages fetched regardless of target_share
-#:
-#: Popular brands : ~57 % — explicit brand filters for the top brands in Poland.
-#: General        : ~10 % — unfiltered search catches all remaining brands proportionally
-#:                           (Dacia, Citroen, Volvo, Alfa Romeo, Mini, Suzuki, Subaru …).
-#: Luxury brands  : ~13 % — oversampled to give models enough rare/high-price examples.
-#: Electric       : ~20 % — oversampled to enrich EV representation.
-#:
-#: max_pages values are sized for a 200 000-row target.
-#: pages_per_spec = ceil(target_rows * target_share / PAGE_SIZE) — max_pages is the hard cap.
 STRATIFIED_CONFIG: list[dict] = [
-    # ----- Popular brands: individually filtered (57 % of target) ----------
-    # Core Polish market — high volume, many models per brand
     {"category": "popular",  "filter_key": "make",      "filter_value": "volkswagen",    "target_share": 0.06, "max_pages": 500},
     {"category": "popular",  "filter_key": "make",      "filter_value": "toyota",        "target_share": 0.05, "max_pages": 420},
     {"category": "popular",  "filter_key": "make",      "filter_value": "bmw",           "target_share": 0.04, "max_pages": 380},
@@ -634,11 +566,7 @@ STRATIFIED_CONFIG: list[dict] = [
     {"category": "popular",  "filter_key": "make",      "filter_value": "mitsubishi",    "target_share": 0.01, "max_pages": 140},
     {"category": "popular",  "filter_key": "make",      "filter_value": "subaru",        "target_share": 0.01, "max_pages": 120},
     {"category": "popular",  "filter_key": "make",      "filter_value": "land-rover",    "target_share": 0.01, "max_pages": 120},
-    # ----- General catch-all: no brand filter (10 % of target) ------------
-    # Fetches all remaining brands proportionally (Jeep, Lexus, Cupra, Volvo,
-    # Chevrolet, Dodge, Smart, Lancia, Genesis, etc.) — whatever Otomoto lists.
     {"category": "popular",  "filter_key": "none",      "filter_value": "",              "target_share": 0.10, "max_pages": 700},
-    # ----- Luxury / rare brands (13 % of target) --------------------------
     {"category": "luxury",   "filter_key": "make",      "filter_value": "porsche",       "target_share": 0.04, "max_pages": 250},
     {"category": "luxury",   "filter_key": "make",      "filter_value": "ferrari",       "target_share": 0.02, "max_pages": 70},
     {"category": "luxury",   "filter_key": "make",      "filter_value": "lamborghini",   "target_share": 0.01, "max_pages": 35},
@@ -646,10 +574,8 @@ STRATIFIED_CONFIG: list[dict] = [
     {"category": "luxury",   "filter_key": "make",      "filter_value": "rolls-royce",   "target_share": 0.01, "max_pages": 35},
     {"category": "luxury",   "filter_key": "make",      "filter_value": "maserati",      "target_share": 0.02, "max_pages": 70},
     {"category": "luxury",   "filter_key": "make",      "filter_value": "aston-martin",  "target_share": 0.01, "max_pages": 35},
-    # ----- Electric vehicles: all brands via fuel_type filter (20 % of target)
     {"category": "electric", "filter_key": "fuel_type", "filter_value": "electric",      "target_share": 0.20, "max_pages": 340},
 ]
-
 
 def _fetch_with_filters(
     filters: dict,
@@ -811,9 +737,7 @@ def fetch_balanced_dataset(
         )
         frames = []
         for i, spec in enumerate(STRATIFIED_CONFIG):
-            # Different seed per spec so rows are genuinely distinct after dedup
             df_spec = _generate_mock_data(_rows_per_spec, seed=42 + i * 1000)
-            # Make offer_ids globally unique across specs
             df_spec["offer_id"] = [f"mock_s{i:02d}_{j:06d}" for j in range(len(df_spec))]
             df_spec["_category"] = spec["category"]
             frames.append(df_spec)
@@ -833,17 +757,15 @@ def fetch_balanced_dataset(
         target_share = spec["target_share"]
         max_pages    = spec["max_pages"]
 
-        # Compute pages proportional to target allocation
         pages_needed  = max(1, int(round(target_rows * target_share / PAGE_SIZE)))
         pages_to_fetch = min(pages_needed, max_pages)
 
-        # Build Otomoto query parameter
         if filter_key == "make":
             filters = {"search[filter_enum_make][]": filter_value}
         elif filter_key == "fuel_type":
             filters = {"search[filter_enum_fuel_type][]": filter_value}
         elif filter_key == "none":
-            filters = {}  # no brand/fuel filter — fetches all listings proportionally
+            filters = {}
         else:
             filters = {filter_key: filter_value}
 
@@ -876,12 +798,10 @@ def fetch_balanced_dataset(
 
     df = pd.DataFrame(all_records)
 
-    # Ensure all expected columns present
     for col in extra_cols:
         if col not in df.columns:
             df[col] = ""
 
-    # Global deduplication (luxury + EV brands overlap with brand filters)
     before = len(df)
     df = df.drop_duplicates(subset=["offer_id"])
     if before != len(df):

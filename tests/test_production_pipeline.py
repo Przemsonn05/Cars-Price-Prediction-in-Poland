@@ -64,26 +64,26 @@ def test_pipeline_accepts_raw_single_row(synthetic_car_df):
     pipe.fit(X, y_log)
 
     single_row = pd.DataFrame([{
-        "Condition":        "used",
-        "Vehicle_brand":    "audi",
-        "Vehicle_model":    "a4",
-        "Production_year":  2018,
-        "Mileage_km":       120_000,
-        "Power_HP":         190,
+        "Condition": "used",
+        "Vehicle_brand": "audi",
+        "Vehicle_model": "a4",
+        "Production_year": 2018,
+        "Mileage_km": 120_000,
+        "Power_HP": 190,
         "Displacement_cm3": 1968,
-        "Fuel_type":        "diesel",
-        "Drive":            "front wheels",
-        "Transmission":     "automatic",
-        "Type":             "sedan",
-        "Doors_number":     4,
-        "Colour":           "black",
-        "Origin_country":   "germany",
-        "First_owner":      1,
-        "Offer_location":   "Warszawa",
-        "Features":         "airbags, abs, navigation",
+        "Fuel_type": "diesel",
+        "Drive": "front wheels",
+        "Transmission": "automatic",
+        "Type": "sedan",
+        "Doors_number": 4,
+        "Colour": "black",
+        "Origin_country": "germany",
+        "First_owner": 1,
+        "Offer_location": "Warszawa",
+        "Features": "airbags, abs, navigation",
     }])
 
     prediction = pipe.predict(single_row)
     assert prediction.shape == (1,)
     assert np.isfinite(prediction[0])
-    assert np.expm1(prediction[0]) > 1000  # sanity check
+    assert np.expm1(prediction[0]) > 1000

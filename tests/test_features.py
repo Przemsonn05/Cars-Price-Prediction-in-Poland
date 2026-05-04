@@ -17,7 +17,6 @@ from src.features import (
     engineer_base_features,
 )
 
-
 def test_engineer_base_features_creates_expected_columns(synthetic_car_df):
     df_f = engineer_base_features(synthetic_car_df)
     for col in (
@@ -28,25 +27,20 @@ def test_engineer_base_features_creates_expected_columns(synthetic_car_df):
     ):
         assert col in df_f.columns, f"Missing engineered column: {col}"
 
-
 def test_fit_transform_is_idempotent_shape(synthetic_car_df):
     X = synthetic_car_df.drop("price_PLN", axis=1)
     t = FeatureEngineeringTransformer()
     X1 = t.fit_transform(X)
     X2 = t.transform(X)
     assert X1.shape == X2.shape
-    # All columns must match.
     assert list(X1.columns) == list(X2.columns)
-
 
 def test_transformer_learns_brand_frequencies(synthetic_car_df):
     X = synthetic_car_df.drop("price_PLN", axis=1)
     t = FeatureEngineeringTransformer().fit(X)
-    # Brands present in training should be in the fitted map.
     for brand in ("volkswagen", "toyota", "bmw"):
         assert brand in t.brand_freq_
     assert t.max_brand_freq_ >= 1
-
 
 def test_inference_consistency_train_vs_test(synthetic_car_df):
     """Regression test for the original C1 bug.
@@ -57,7 +51,6 @@ def test_inference_consistency_train_vs_test(synthetic_car_df):
     X = synthetic_car_df.drop("price_PLN", axis=1)
     t = FeatureEngineeringTransformer().fit(X)
 
-    # Build a single-row "inference" DataFrame picked from the training data.
     probe = X.iloc[[5]].copy()
     train_features = t.transform(X).iloc[[5]][["Brand_frequency", "Brand_tier",
                                                 "BrandModel_frequency", "Rarity_index"]]
@@ -70,7 +63,6 @@ def test_inference_consistency_train_vs_test(synthetic_car_df):
         check_dtype=False,
     )
 
-
 def test_unknown_brand_gets_freq_one(synthetic_car_df):
     X = synthetic_car_df.drop("price_PLN", axis=1)
     t = FeatureEngineeringTransformer().fit(X)
@@ -82,7 +74,6 @@ def test_unknown_brand_gets_freq_one(synthetic_car_df):
     assert int(out["Brand_frequency"].iloc[0]) == 1
     assert int(out["BrandModel_frequency"].iloc[0]) == 1
     assert out["Brand_tier"].iloc[0] == "Niche"
-
 
 def test_transformer_is_picklable(synthetic_car_df, tmp_path):
     import joblib
@@ -97,7 +88,6 @@ def test_transformer_is_picklable(synthetic_car_df, tmp_path):
         check_dtype=False,
     )
 
-
 def test_legacy_api_still_works(synthetic_car_df):
     """apply_advanced_transformations must still function (notebook compat)."""
     df_f = engineer_base_features(synthetic_car_df.drop("price_PLN", axis=1))
@@ -108,10 +98,8 @@ def test_legacy_api_still_works(synthetic_car_df):
     assert "Brand_frequency" in tf_test.columns
     assert tf_train.shape[1] == tf_test.shape[1]
 
-
 def test_no_nan_in_critical_columns_after_transform(synthetic_car_df):
     X = synthetic_car_df.drop("price_PLN", axis=1)
-    # Inject NaNs to exercise the imputer.
     X_with_nans = X.copy()
     X_with_nans.loc[0:5, "Mileage_km"] = np.nan
     X_with_nans.loc[3:9, "Power_HP"] = np.nan

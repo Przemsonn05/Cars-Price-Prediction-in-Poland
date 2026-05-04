@@ -14,7 +14,6 @@ from src.config import (
     get_usage_category,
 )
 
-
 def test_brand_tiers_are_disjoint():
     """No brand is in two tiers at once - a drift-resistance invariant."""
     pairs = [
@@ -28,11 +27,9 @@ def test_brand_tiers_are_disjoint():
     for a, b in pairs:
         assert a.isdisjoint(b), f"Brands overlap between tiers: {a & b}"
 
-
 def test_is_premium_equals_union():
     """IS_PREMIUM_BRANDS must match the union of ultra / luxury / premium."""
     assert IS_PREMIUM_BRANDS == (ULTRA_LUXURY_BRANDS | LUXURY_BRANDS | PREMIUM_BRANDS)
-
 
 def test_get_brand_tier_roundtrip():
     assert get_brand_tier("FERRARI") == "Ultra_Luxury"
@@ -42,7 +39,6 @@ def test_get_brand_tier_roundtrip():
     assert get_brand_tier("some-unknown-brand") == "Niche"
     assert get_brand_tier(None) == "Niche"
     assert get_brand_tier("") == "Niche"
-
 
 def test_age_bins_are_monotonic():
     assert get_age_category(0) == "New"
@@ -54,7 +50,6 @@ def test_age_bins_are_monotonic():
     assert get_age_category(17) == "Old"
     assert get_age_category(50) == "Old"
     assert get_age_category(None) == "Used"
-
 
 def test_usage_and_performance_bins():
     assert get_usage_category(5_000) == "Low"
@@ -69,7 +64,6 @@ def test_usage_and_performance_bins():
     assert get_performance_category(200) == "High_Performance"
     assert get_performance_category(None) == "Unknown"
 
-
 def test_tier_weight_map_covers_all_tiers():
     expected = {"Ultra_Luxury", "Luxury", "Premium", "Mass_Market", "Niche"}
     assert set(TIER_WEIGHT_MAP.keys()) == expected
@@ -83,7 +77,6 @@ def test_popularity_thresholds():
     assert get_brand_popularity(50) == "Uncommon"
     assert get_brand_popularity(300) == "Common"
     assert get_brand_popularity(5000) == "Popular"
-
 
 def test_frequency_fallback_populated():
     assert len(BRAND_FREQUENCY_FALLBACK) > 30
